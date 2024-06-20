@@ -1,0 +1,37 @@
+Copyright
+
+For a Single Release, use: © Ericsson AB 2011. 
+For an Intermittent Release, use: © Ericsson AB 1998, 2000, 2011.
+
+The software was first released in 1998 and updated in 2000 and 2011. State all years of release, separated by commas. If it is difficult to find information about previous years of release, state the years of the first release and the latest. 
+
+For a Regular Annual Release, use: © Ericsson AB 1998-2011.
+ 
+
+Copyright clarification "All rights..."
+
+As a clarifying option, you could add: "All Rights Reserved". For example: © Ericsson AB 2011 - All Rights Reserved
+ 
+
+Copyright clarification "No part..." (Optional)
+
+As an clarifying option, you could add: "No part of this software may be reproduced in any form without the written permission of the copyright owner." Ex: © Ericsson AB 2011 - All Rights Reserved. No part of this software may be reproduced in any form without the written permission of the copyright owner.
+ 
+
+Copyright <-> ©
+
+When the graphical symbol © cannot be used, use the copyright text. For example: Copyright Ericsson AB 2004.
+
+Distribution error
+
+No
+ 
+
+Disclaimer
+
+Controlled by agreement
+ 
+
+Change clause
+
+Controlled by agreement
