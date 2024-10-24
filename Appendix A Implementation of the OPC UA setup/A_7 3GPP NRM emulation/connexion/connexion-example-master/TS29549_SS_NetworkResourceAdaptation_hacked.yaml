@@ -1,0 +1,216 @@
+openapi: 3.0.0
+info:
+  version: 1.1.0
+  title: SS_NetworkResourceAdaptation
+  description: |
+    SS Network Resource Adaptation Service.  
+    © 2022, 3GPP Organizational Partners (ARIB, ATIS, CCSA, ETSI, TSDSI, TTA, TTC).  
+    All rights reserved.
+
+externalDocs:
+  description: >
+    3GPP TS 29.549 V17.5.0; Service Enabler Architecture Layer for Verticals (SEAL);
+    Application Programming Interface (API) specification; Stage 3.
+  url: https://www.3gpp.org/ftp/Specs/archive/29_series/29.549/
+
+security:
+  - {}
+  - oAuth2ClientCredentials: []
+
+servers:
+  - url: '{apiRoot}/ss-nra/v1'
+    variables:
+      apiRoot:
+        default: https://example.com
+        description: apiRoot as defined in clause 4.4 of 3GPP TS 29.501
+
+paths:
+  /unicast-subscriptions:
+    post:
+      summary: Creates a new Individual Unicast Subscription resource
+      operationId: CreateUnicastSubscription
+      tags:
+        - Unicast Subscriptions (Collection)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnicastSubscription'
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnicastSubscription'
+          headers:
+            Location:
+              description: >
+                Contains the URI of the created individual unicast subscription resource.
+              required: true
+              schema:
+                type: string
+      callbacks:
+        UserPlaneNotification:
+          '{$request.body#/notifUri}': 
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/UserPlaneNotification'
+              responses:
+                '204':
+                  description: No Content, Notification was succesfull
+  /unicast-subscriptions/{uniSubId}:
+    get:
+      summary: "Reads an existing Individual Unicast Subscription"
+      operationId: GetUnicastSubscription
+      tags:
+        - Individual Unicast Subscription (Document)
+      parameters:
+        - name: uniSubId
+          in: path
+          description: Unicast Subscription ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK. Resource representation is returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnicastSubscription'
+    delete:
+      summary: "Delete an existing Individual Unicast Subscription"
+      operationId: DeleteUnicastSubscription
+      tags:
+        - Individual Unicast Subscription (Document)
+      parameters:
+        - name: uniSubId
+          in: path
+          description: Unicast Subscription ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content. Resource was succesfully deleted
+components:
+  securitySchemes:
+    oAuth2ClientCredentials:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: '{tokenUrl}'
+          scopes: {}
+
+  schemas:
+
+    UnicastSubscription:
+      description: Represents a unicast subscription.
+      type: object
+      properties:
+        valTgtUe:
+          $ref: 'TS29549_SS_UserProfileRetrieval.yaml#/components/schemas/ValTargetUe'
+        uniQosReq:
+          type: string
+        duration:
+          $ref: 'TS29571_CommonData.yaml#/components/schemas/DateTime'
+        notifUri:
+          $ref: 'TS29571_CommonData.yaml#/components/schemas/Uri'
+        reqTestNotif:
+          type: boolean
+        wsNotifCfg:
+          $ref: 'TS29122_CommonData.yaml#/components/schemas/WebsockNotifConfig'
+        suppFeat:
+          $ref: 'TS29571_CommonData.yaml#/components/schemas/SupportedFeatures'
+      required:
+        - valTgtUe
+        - notifUri
+
+    UserPlaneNotification:
+      description: Represents a notification on User Plane events.
+      type: object
+      properties:
+        notifId:
+          $ref: 'TS29571_CommonData.yaml#/components/schemas/Uri'
+        eventNotifs:
+          type: array
+          items:
+            $ref: '#/components/schemas/NrmEventNotification'
+          minItems: 1
+      required:
+        - notifId
+        - eventNotifs
+
+    NrmEventNotification:
+      description: Represents a notification on an individual User Plane event.
+      type: object
+      properties:
+        event:
+          $ref: '#/components/schemas/NrmEvent'
+        ts:
+          $ref: 'TS29571_CommonData.yaml#/components/schemas/DateTime'
+        deliveryMode:
+          $ref: '#/components/schemas/DeliveryMode'
+        streamIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+      required:
+        - event
+        - ts
+
+
+# Simple data types and Enumerations
+
+    ServiceAnnoucementMode:
+      anyOf:
+      - type: string
+        enum:
+          - NRM
+          - VAL
+      - type: string
+        description: >
+          This string provides forward-compatibility with future
+          extensions to the enumeration but is not used to encode
+          content defined in the present version of this API.
+      description: |
+        Possible values are:
+        - NRM: NRM server performs the service announcement.
+        - VAL: VAL server performs the service announcement.
+
+    DeliveryMode:
+      anyOf:
+      - type: string
+        enum:
+          - UNICAST
+          - MULTICAST
+      - type: string
+        description: >
+          This string provides forward-compatibility with future
+          extensions to the enumeration but is not used to encode
+          content defined in the present version of this API.
+      description: |
+        Possible values are:
+        - UNICAST: Unicast delivery.
+        - MULTICAST: Multicast delivery.
+
+    NrmEvent:
+      anyOf:
+      - type: string
+        enum:
+          - UP_DELIVERY_MODE
+      - type: string
+        description: >
+          This string provides forward-compatibility with future
+          extensions to the enumeration but is not used to encode
+          content defined in the present version of this API.
+      description: |
+        Possible values are:
+        - UP_DELIVERY_MODE: User Plane delivery mode.
