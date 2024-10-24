@@ -234,7 +234,7 @@ git clone "<repository URL>"
     ```
 
 ## 3. Usage
-Every component needs a terminal (*4.1., 4.2., 4.3., 4.5.*), therefore open 4 terminals first.
+Every component needs a terminal (*3.1., 3.2., 3.3., 3.5.*), therefore open 4 terminals first.
 
 #### 3.1. Urcap build
 * Start your virtual machine of URSIM in VirtualBox.
