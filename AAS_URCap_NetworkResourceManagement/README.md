@@ -40,7 +40,7 @@
 >>### Structure of the implemented System
 >><p style="text-align: justify;">In this thesis, I will describe every detail of each of the main
 >>elements step-by- step. But first, I want to seize the opportunity to present an overview of the
->>system that has been created. The following image (Figure 1.) illustrates the communication between
+>>system that has been created. The following image illustrates the communication between
 >>the different components and represents their place in the architecture. Let’s examine the most
 >>important tasks and their participants (the listing follows a chronological timeline):</p>
 >><img src="Pictures/img.png">
