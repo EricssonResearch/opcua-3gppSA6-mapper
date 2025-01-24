@@ -1,0 +1,21 @@
+{
+  "modelType": {
+    "name": "Property"
+  },
+  "dataSpecification": [],
+  "embeddedDataSpecifications": [],
+  "kind": "Instance",
+  "idShort": "robotNetworkLatencyHereComesTheNumberID",
+  "value": 0,
+  "valueType": "int",
+  "parent": {
+    "keys": [
+      {
+        "type": "Submodel",
+        "local": true,
+        "value": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID",
+        "idType": "Custom"
+      }
+    ]
+  }
+}

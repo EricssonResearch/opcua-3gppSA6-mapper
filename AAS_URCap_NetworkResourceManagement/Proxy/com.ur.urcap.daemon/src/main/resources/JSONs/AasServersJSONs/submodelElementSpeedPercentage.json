@@ -1,0 +1,21 @@
+{
+  "modelType": {
+    "name": "Property"
+  },
+  "dataSpecification": [],
+  "embeddedDataSpecifications": [],
+  "kind": "Instance",
+  "idShort": "robotSpeedPercentageHereComesTheNumberID",
+  "value": 1.0,
+  "valueType": "float",
+  "parent": {
+    "keys": [
+      {
+        "type": "Submodel",
+        "local": true,
+        "value": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID",
+        "idType": "Custom"
+      }
+    ]
+  }
+}

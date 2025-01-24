@@ -1,0 +1,88 @@
+{
+  "idShort": "robotDynamicHereComesTheNumberID",
+  "identification": {
+    "idType": "Custom",
+    "id": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID"
+  },
+  "dataSpecification": [],
+  "embeddedDataSpecifications": [],
+  "modelType": {
+    "name": "Submodel"
+  },
+  "kind": "Instance",
+  "submodelElements": [
+    {
+      "modelType": {
+        "name": "Property"
+      },
+      "dataSpecification": [],
+      "embeddedDataSpecifications": [],
+      "kind": "Instance",
+      "idShort": "robotSpeedPercentageHereComesTheNumberID",
+      "value": 1.0,
+      "valueType": "float",
+      "parent": {
+        "keys": [
+          {
+            "type": "Submodel",
+            "local": true,
+            "value": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID",
+            "idType": "Custom"
+          }
+        ]
+      }
+    },
+    {
+      "modelType": {
+        "name": "Property"
+      },
+      "dataSpecification": [],
+      "embeddedDataSpecifications": [],
+      "kind": "Instance",
+      "idShort": "robotNetworkBandwidthHereComesTheNumberID",
+      "value": 1000,
+      "valueType": "int",
+      "parent": {
+        "keys": [
+          {
+            "type": "Submodel",
+            "local": true,
+            "value": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID",
+            "idType": "Custom"
+          }
+        ]
+      }
+    },
+    {
+      "modelType": {
+        "name": "Property"
+      },
+      "dataSpecification": [],
+      "embeddedDataSpecifications": [],
+      "kind": "Instance",
+      "idShort": "robotNetworkLatencyHereComesTheNumberID",
+      "value": 0,
+      "valueType": "int",
+      "parent": {
+        "keys": [
+          {
+            "type": "Submodel",
+            "local": true,
+            "value": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID",
+            "idType": "Custom"
+          }
+        ]
+      }
+    }
+  ],
+  "parent": {
+    "keys": [
+      {
+        "type": "AssetAdministrationShell",
+        "local": true,
+        "value": "eclipse.basyx.aas.robotHereComesTheNumberID",
+        "idType": "Custom"
+      }
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "modelType": {
+    "name": "AssetAdministrationShellDescriptor"
+  },
+  "idShort": "robotHereComesTheNumberID",
+  "identification": {
+    "idType": "Custom",
+    "id": "eclipse.basyx.aas.robotHereComesTheNumberID"
+  },
+  "endpoints": [
+    {
+      "type": "http",
+      "address": "http://127.0.0.1:4001/aasServer/shells/eclipse.basyx.aas.robotHereComesTheNumberID/aas"
+    }
+  ],
+  "asset": {
+    "modelType": {
+      "name": "Asset"
+    },
+    "dataSpecification": [],
+    "embeddedDataSpecifications": [],
+    "idShort": "robotAssetHereComesTheNumberID",
+    "identification": {
+      "idType": "Custom",
+      "id": "eclipse.basyx.asset.robotHereComesTheNumberID"
+    },
+    "kind": "Instance"
+  },
+  "submodels": [
+    {
+      "modelType": {
+        "name": "SubmodelDescriptor"
+      },
+      "idShort": "robotDynamicHereComesTheNumberID",
+      "identification": {
+        "idType": "Custom",
+        "id": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID"
+      },
+      "endpoints": [
+        {
+          "type": "http",
+          "address": "http://127.0.0.1:4001/aasServer/shells/eclipse.basyx.aas.robotHereComesTheNumberID/aas/submodels/robotDynamicHereComesTheNumberID/submodel"
+        }
+      ]
+    },
+    {
+      "modelType": {
+        "name": "SubmodelDescriptor"
+      },
+      "idShort": "robotStaticHereComesTheNumberID",
+      "identification": {
+        "idType": "Custom",
+        "id": "eclipse.basyx.submodel.robotStaticHereComesTheNumberID"
+      },
+      "endpoints": [
+        {
+          "type": "http",
+          "address": "http://127.0.0.1:4001/aasServer/shells/eclipse.basyx.aas.robotHereComesTheNumberID/aas/submodels/robotStaticHereComesTheNumberID/submodel"
+        }
+      ]
+    }
+  ]
+}

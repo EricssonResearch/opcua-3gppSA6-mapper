@@ -1,0 +1,69 @@
+{
+  "modelType": {
+    "name": "AssetAdministrationShell"
+  },
+  "idShort": "robotHereComesTheNumberID",
+  "identification": {
+    "idType": "Custom",
+    "id": "eclipse.basyx.aas.robotHereComesTheNumberID"
+  },
+  "dataSpecification": [],
+  "embeddedDataSpecifications": [],
+  "submodels": [
+    {
+      "keys": [
+        {
+          "type": "AssetAdministrationShell",
+          "local": true,
+          "value": "eclipse.basyx.aas.robotHereComesTheNumberID",
+          "idType": "Custom"
+        },
+        {
+          "type": "Submodel",
+          "local": true,
+          "value": "eclipse.basyx.submodel.robotDynamicHereComesTheNumberID",
+          "idType": "Custom"
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "type": "AssetAdministrationShell",
+          "local": true,
+          "value": "eclipse.basyx.aas.robotHereComesTheNumberID",
+          "idType": "Custom"
+        },
+        {
+          "type": "Submodel",
+          "local": true,
+          "value": "eclipse.basyx.submodel.robotStaticHereComesTheNumberID",
+          "idType": "Custom"
+        }
+      ]
+    }
+  ],
+  "asset": {
+    "keys": [
+      {
+        "type": "Asset",
+        "local": true,
+        "value": "eclipse.basyx.asset.robotHereComesTheNumberID",
+        "idType": "Custom"
+      }
+    ],
+    "modelType": {
+      "name": "Asset"
+    },
+    "dataSpecification": [],
+    "embeddedDataSpecifications": [],
+    "idShort": "robotAssetHereComesTheNumberID",
+    "identification": {
+      "idType": "Custom",
+      "id": "eclipse.basyx.asset.robotHereComesTheNumberID"
+    },
+    "kind": "Instance"
+  },
+  "views": [],
+  "conceptDictionary": []
+}

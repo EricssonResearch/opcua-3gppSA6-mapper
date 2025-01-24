@@ -1,0 +1,24 @@
+{
+  "idShort": "robotStaticHereComesTheNumberID",
+  "identification": {
+    "idType": "Custom",
+    "id": "eclipse.basyx.submodel.robotStaticHereComesTheNumberID"
+  },
+  "dataSpecification": [],
+  "embeddedDataSpecifications": [],
+  "modelType": {
+    "name": "Submodel"
+  },
+  "kind": "Instance",
+  "submodelElements": [],
+  "parent": {
+    "keys": [
+      {
+        "type": "AssetAdministrationShell",
+        "local": true,
+        "value": "eclipse.basyx.aas.robotHereComesTheNumberID",
+        "idType": "Custom"
+      }
+    ]
+  }
+}
