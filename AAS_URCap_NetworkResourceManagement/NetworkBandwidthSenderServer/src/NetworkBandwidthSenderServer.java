@@ -4,7 +4,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Random;
 
-public class SpeedSenderServer {
+public class NetworkBandwidthSenderServer {
     public static void main(String[] args) {
         ServerSocket serverSocket = null;
         Socket clientSocket = null;
