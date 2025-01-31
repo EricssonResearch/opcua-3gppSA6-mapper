@@ -87,9 +87,10 @@
     sudo dpkg -i jdk-<expected java version>.deb
     ```
 
-* Install **Python**:
+* Install **Python** (>=Python 2.6):
     ```bash
     sudo apt install python3
+    sudo apt install python-is-python3
     ```
   
 * Download the Eclipse BaSyx SDK with the following command:
@@ -125,6 +126,21 @@ For the MQTT Communication we need an MQTT Broker, so first of all we have to in
   sudo kill -9 <PID>
   ```
 
+* Configure the `mosquitto.conf` file to make the Broker accessable for everybody:
+  ```bash
+  sudo nano /etc/mosquitto/mosquitto.conf
+  ```
+  * Insert these lines, then save the file:
+    ```bash
+    listener 1883 0.0.0.0
+    allow_anonymous true
+    ```
+* Restart the Broker and check that it's working properly:
+  ```bash
+  sudo systemctl restart mosquitto
+  sudo systemctl status mosquitto
+  ```
+
 ### 3.2. MongoDB
 For our AAS Server we have to install MongoDB to be able to create databases and to be able to check them through an application with GUI (MongoDB Compass).
 As our first step we have to download and install our MongoDB Server (Community Edition) and the MongoDB Compass from the official sites of MongoDB.
@@ -152,21 +168,21 @@ As our last step we can check status, enable/disable, start, restart and stop ou
 
 * Create an account on [Universal Robots' official site](https://www.universal-robots.com/), then sign in.
 
-* Download the latest [URCap SDK from Universal Robots' official site](https://www.universal-robots.com/download/software-e-series/support/urcaps-sdk/) (sdk-1.14.0.zip).
+* Download the latest [URCap SDK from Universal Robots' official site](https://www.universal-robots.com/download/software-e-series/support/urcaps-sdk/) (sdk-1.15.0.zip).
 
 * Extract the ZIP file, then follow the next steps depending on your environment:
 
     ***- Ubuntu 20.04 or older versions:***
-    * Run the following command in the terminal in the `sdk-1.14.0` directory:
+    * Run the following command in the terminal in the `sdk-1.15.0` directory:
         ```bash
         ./install.sh
         ```
     * During the installation accept the recommended packages by pressing `Y`, then `Enter`. If the installation was successful, you can move on to the next step.
 
     ***- Ubuntu 22.04 and newer versions:***
-    * **Install `tar` and `lib32gcc-s1` instead of `lib32gcc1`, because it was renamed in these distros' repositories:**
+    * **Install `tar` and `lib32gcc-s1`, `libncurses6` instead of `lib32gcc1` and `libncurses5`, because it was renamed in these distros' repositories:**
         ```bash
-        sudo apt install tar lib32gcc-s1
+        sudo apt install tar lib32gcc-s1 libncurses6
         ```
     * **Open the `install.sh` file and modify the code by:**
         * commenting out `lib32gcc1` in *line 126* to the following: `sudo apt-get install -y libc6-i386 #lib32gcc1`,
@@ -198,8 +214,8 @@ As our last step we can check status, enable/disable, start, restart and stop ou
         * `shlibs`.
             
         The dependency info is inside the `control` file, so open it with any text editor and change the line:
-        * from `Depends: lib32gcc1, ...`
-        * to `Depends: lib32gcc-s1, ...`
+        * from `Depends: lib32gcc1, ..., libncurses5`
+        * to `Depends: lib32gcc-s1, ..., libncurses6`
 
     * **Now, that the changes are done, let's put it back together.**
         * Package the files of the unpacked `.tar` directory and move it to the outer one:
@@ -218,8 +234,11 @@ As our last step we can check status, enable/disable, start, restart and stop ou
         * During the installation accept the recommended packages by pressing `Y`, then `Enter`. If the installation was successful, you can move on to the next step.
 
 ### 3.4. Setting up the Virtual Machine of URSIM
-* Download and install the corresponding package of [Virtualbox](https://www.virtualbox.org/wiki/Linux_Downloads).
-
+* Download and install the corresponding package of [Virtualbox](https://www.virtualbox.org/wiki/Linux_Downloads), or use the following command:
+  ```bash
+  sudo apt install virtualbox
+  ```
+    
 * Download the `.rar` file from the official site of Universal Robots. Only one of these packages are needed, so you can choose any of them.
     * You have to create an account to download the `.rar` file from [Offline Simulator - e-Series and UR20/UR30 - UR Sim for non Linux 5.17.0](https://www.universal-robots.com/download/software-ur20ur30/simulator-non-linux/offline-simulator-e-series-and-ur20ur30-ur-sim-for-non-linux-5170/).
     * It is also a good option to work with [Offline Simulator - e-Series - UR Sim for non Linux 5.12.6 LTS](https://www.universal-robots.com/download/software-e-series/simulator-non-linux/offline-simulator-e-series-ur-sim-for-non-linux-5126-lts/).
