@@ -21,11 +21,13 @@ The difference is, that the hosts are replaced with VLANHOSTs, which use VLAN ta
 ## How to run
 
 NRM_sim_server_short_test_no_vlan
-'''
+
+```
 python3 NRM_sim_server_short_test_no_vlan.py
-'''
+```
 
 NRM_sim_server_short_test_with_vlan
-'''
+
+```
 python3 NRM_sim_server_short_test_with_vlan.py
-'''
+```
