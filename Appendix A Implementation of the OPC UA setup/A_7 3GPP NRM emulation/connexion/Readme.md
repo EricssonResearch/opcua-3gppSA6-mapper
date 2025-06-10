@@ -5,11 +5,12 @@
 
  ## Implemented APIs
  The NRM server simulation (Connexion.py) has the following APIs implemented:
- *TS29549_SS_NetworkResourceAdaptation
-  *(unicast-subscriptions and multicast-subscriptions)
- *TS29549_SS_GroupManagement
- *TS29549_SS_LocationReporting
- *TS29549_SS_LocationAreaInfoRetrieval
+ 
+ * TS29549_SS_NetworkResourceAdaptation
+   * (unicast-subscriptions and multicast-subscriptions)
+ * TS29549_SS_GroupManagement
+ * TS29549_SS_LocationReporting
+ * TS29549_SS_LocationAreaInfoRetrieval
 
  ## NRM server behaviour
  The NRM server uses MySQL database server to store registered requests and their last state in case of a crash or sudden shutdown.
