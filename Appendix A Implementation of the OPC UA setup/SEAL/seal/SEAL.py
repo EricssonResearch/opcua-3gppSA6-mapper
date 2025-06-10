@@ -1,4 +1,5 @@
-from urllib import request
+from urllib import request, parse
+import requests
 from urllib import error
 import string
 import random
@@ -7,6 +8,19 @@ import time
 from datetime import timedelta, date, datetime, timezone
 
 from NetworkExposureAPI import NetworkExposure_API
+
+
+def flatten_dict(d, parent_key='location-info', sep='['):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
 
 class SEAL(NetworkExposure_API):
 
@@ -17,14 +31,19 @@ class SEAL(NetworkExposure_API):
         self.uniSubId = ""
         self.LocationReportingId = ""
         self.multiSubId = ""
-        self.url_SEAL = 'http://127.0.0.1:7777/'
+        self.url_SEAL = 'http://10.1.2.50:7777/'
+        # self.url_SEAL = 'http://127.0.0.1:7777/'
         self.auth_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImZvbyIsInBhc3N3b3JkIjoiYmFyIiwiaWF0IjoxNjY4MDg0NDI1fQ.lT4ABOQSHyJdIiF9rso06qcwrBkIxRFyolIgdBAI4l0"
         self.username = "foo"
         self.password = "bar"
+        self.LocationArea = ""
+        self.valServiceIds = []
+        self.valServiceIds.append("VAL-service-1")
+        
 
         # if there is a SEAL server that provides responses, then this can be set to 0
         self.local_test = 0
-
+    
         self.QCI = None
         self.uplinkMaxBitRate = None
         self.downlinkMaxBitRate = None
@@ -39,7 +58,6 @@ class SEAL(NetworkExposure_API):
         print("SEAL instance created" + str(self))
 
     def Login(self):
-        local_test = 1
         url = self.url_SEAL + "login"
         print("url: " + url)
 
@@ -75,6 +93,50 @@ class SEAL(NetworkExposure_API):
         self.auth_token = data['accessToken']
         print("auth_token : " + self.auth_token)
         return 200
+
+
+    def CheckConnectionToNRM(self):
+        url = self.url_SEAL
+        print("url: " + url)
+        post_data = {}
+
+
+        if self.local_test == 0:
+                try:
+                    #req = request.Request(url, data = post_data, method="POST")
+                    req = request.Request(url, method="POST")
+                    req.add_header('Content-Type', 'application/json')
+                    r = request.urlopen(req, data=post_data, timeout=6000).read().decode('utf-8')
+                    return
+                except error.URLError as e:
+                    if hasattr(e, 'reason'):
+                        print('We failed to reach a server.')
+                        print('Reason: ', e.reason)
+
+                        if (hasattr(e, 'reason')):
+                        
+                            while(hasattr(e, 'reason')):
+                                time.sleep(5)
+                                try:
+                                    r = request.urlopen(req, data=post_data, timeout=10).read().decode('utf-8')
+                                    print("Connection to NRM is OK")
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
+
+                    elif hasattr(e, 'code'):
+                        print('The server couldn\'t fulfill the request.')
+                        print('Error code: ', e.code)
+        
+
+    
 
 
 #Group Management
@@ -303,7 +365,7 @@ class SEAL(NetworkExposure_API):
             "resUri": "string",
         }
 
-
+        post_data['valServiceIds'] = self.valServiceIds
         post_data = json.dumps(post_data)
         print(post_data)
         post_data = post_data.encode()
@@ -313,11 +375,22 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="POST")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+                
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("GroupManagement POST %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
@@ -354,6 +427,7 @@ class SEAL(NetworkExposure_API):
 
         try:
             self.groupDocId = response.getheader('Location')
+            self.valGroupId = response.valGroupId
             print("\n\nREAD-HEADER-('Location') groupDocId : " + str(self.groupDocId))
             # self.groupDocId = json.loads(response_data)["Location"]
             # print("READ-BODY-LOCATION groupDocId : " + str(self.groupDocId))
@@ -366,8 +440,8 @@ class SEAL(NetworkExposure_API):
         return 200
 
     def RetriveDeviceGroups(self, grpDesc):
-        val_group_id = 'OPC-UA-DOMAIN_ID-' + str(grpDesc)
-        val_service_id = self.groupDocId
+        val_group_id = self.groupDocId 
+        val_service_id = self.valServiceIds[0]
         local_test = 1
         #url = self.url_SEAL + "ss-gm/v1/group-documents{}".format(str("?"+"val-group-id="+val_group_id+"&"+"val-service-id="+val_service_id))#+"?"+"val-group-id="+val_group_id+"&"+"val-service-id="+val_service_id
         url = self.url_SEAL + "ss-gm/v1/group-documents"+"?"+"val-group-id="+val_group_id+"&"+"val-service-id="+val_service_id
@@ -380,11 +454,22 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="GET")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req)
                 response_data = response.read().decode('utf-8')
+                
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("GroupManagement-filter GET %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
@@ -447,11 +532,22 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+        
                 req = request.Request(url, method="GET")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+                
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("GroupManagement GET %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
@@ -654,11 +750,22 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="PATCH")
                 req.add_header('Content-Type', 'application/merge-patch+json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("GroupManagement PATCH %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
@@ -795,24 +902,24 @@ class SEAL(NetworkExposure_API):
                     },
                 #],
                 "positionMethod": "CELLID",
-                        # - CELLID
-                        # - ECID
-                        # - OTDOA
-                        # - BAROMETRIC_PRESSURE
-                        # - WLAN
-                        # - BLUETOOTH
-                        # - MBS
-                        # - MOTION_SENSOR
-                        # - DL_TDOA
-                        # - DL_AOD
-                        # - MULTI-RTT
-                        # - NR_ECID
-                        # - UL_TDOA
-                        # - UL_AOA
-                        # - NETWORK_SPECIFIC
+                                # - CELLID
+                                # - ECID
+                                # - OTDOA
+                                # - BAROMETRIC_PRESSURE
+                                # - WLAN
+                                # - BLUETOOTH
+                                # - MBS
+                                # - MOTION_SENSOR
+                                # - DL_TDOA
+                                # - DL_AOD
+                                # - MULTI-RTT
+                                # - NR_ECID
+                                # - UL_TDOA
+                                # - UL_AOA
+                                # - NETWORK_SPECIFIC
                 "qosFulFilInd": "REQUESTED_ACCURACY_FULFILLED",
-                    # - REQUESTED_ACCURACY_FULFILLED
-                    # - REQUESTED_ACCURACY_NOT_FULFILLED  
+                                # - REQUESTED_ACCURACY_FULFILLED
+                                # - REQUESTED_ACCURACY_NOT_FULFILLED  
                 "ueVelocity": { #HorizontalWithVerticalVelocityAndUncertainty
                     "hSpeed": 100,              #Horizontal speed: 0 - 2047 (float)                         HorizontalVelocity
                     "bearing": 30,              #Horizontal orientation: 0 - 360 (float)                    HorizontalVelocity
@@ -824,12 +931,12 @@ class SEAL(NetworkExposure_API):
                     # HorizontalVelocity
                     # HorizontalWithVerticalVelocity
                 "ldrType": "BEING_INSIDE_AREA",
-                    # - UE_AVAILABLE
-                    # - PERIODIC
-                    # - ENTERING_INTO_AREA
-                    # - LEAVING_FROM_AREA
-                    # - BEING_INSIDE_AREA
-                    # - MOTION
+                            # - UE_AVAILABLE
+                            # - PERIODIC
+                            # - ENTERING_INTO_AREA
+                            # - LEAVING_FROM_AREA
+                            # - BEING_INSIDE_AREA
+                            # - MOTION
                 "achievedQos":{
                     "hAccuracy": 0.5, #min val 0 float
                     "vAccuracy": 0.5
@@ -905,11 +1012,11 @@ class SEAL(NetworkExposure_API):
             },
             "extGrpId": "string", #str(self.deviceID) #String: local identifier followed by "@" and a domain identifier. Both the local identifier and the domain identifier shall be encoded as strings that do not contain any "@" characters. See Clauses 4.6.2 and 4.6.3 of 3GPP TS 23.682 for more information.
             "com5GLanType": "IPV4",
-                # - IPV4
-                # - IPV6
-                # - IPV4V6
-                # - UNSTRUCTURED
-                # - ETHERNET
+                            # - IPV4
+                            # - IPV6
+                            # - IPV4V6
+                            # - UNSTRUCTURED
+                            # - ETHERNET
             "suppFeat": "FFFF", #Pattern: '^[A-Fa-f0-9]*$'
             "resUri": "string",
         }
@@ -923,11 +1030,22 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="PUT")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req,data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("GroupManagement PUT %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
@@ -986,11 +1104,22 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+
                 req = request.Request(url, method="DELETE")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+                
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("GroupManagement DELETE %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
@@ -1039,9 +1168,10 @@ class SEAL(NetworkExposure_API):
 
 
 
+
     def AddDeviceAsMemberToDeviceGroup(self, grpDesc):
         local_test = 1
-        url = self.groupDocId
+        url = self.url_SEAL + "/" + self.groupDocId
         print("url: " + url)
 
         post_data = {
@@ -1066,14 +1196,40 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="PATCH")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
-                r = request.urlopen(req, data=post_data).read().decode('utf-8')
+                r = request.urlopen(req, data=post_data)
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("Group-Management-add-device PATCH %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1144,29 +1300,40 @@ class SEAL(NetworkExposure_API):
                 req = request.Request(url, method="POST")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
+                
                 if (loc):
                     req.add_header('Location', self.uniSubId)
-                # print(req)
-                # print(req.has_header('Location'))
-                # print(req.has_header('Authorization'))
+
                 r = request.urlopen(req, data=post_data)
                 r_data = r.read().decode('utf-8')
+                
                 end = time.time() * 1000
                 print("Receiving request response: %f ms" %end)
                 delay = end - start
                 print("Roundtrip Delay: %f ms" %delay)
                 print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
-                # print(r)
-                # print("\n\n")
-                # print(json.loads(r))
-                # print("\n\n")
-                # print(json.loads(r)['Location'])
-                # self.uniSubId = json.loads(r)['Location']#r.getheader('Location')
-                # print("uniSubId : " + str(self.uniSubId))
+                print("Unicast-Subscription POST %f ms" %delay)
+                
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
+
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1179,6 +1346,7 @@ class SEAL(NetworkExposure_API):
             return 200
 
         self.uniSubId = r.getheader('Location')
+
         print("uniSubId : " + str(self.uniSubId))
         #print("r_data: "+str(r_data))
 
@@ -1195,15 +1363,41 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="GET")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 r = request.urlopen(req, data=post_data).read().decode('utf-8')
                 print(r)
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("Unicast-Subscription GET %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1228,16 +1422,42 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+
                 req = request.Request(url, method="DELETE")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 r = request.urlopen(req, data=post_data).read().decode('utf-8')
                 print(r)
                 self.uniSubId = None
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("Unicast-Subscription DELETE %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1279,11 +1499,11 @@ class SEAL(NetworkExposure_API):
             "duration": end_date.strftime('%d/%m/%Y %H:%M:%S'),
             "multiQosReq":json.dumps(multiQoSReq_data),
             "locArea":{
-                    "cellId":["cellId_example"],
-                    "enodeBId":["string"],
+                    "cellId":["91399"],
+                    "enodeBId":["357"],
                     "geographicArea":[
                         {   
-                                "point":{ "lon": 47.1625, "lat": 19.5033 },
+                                "point":{ "lon": 47.471039, "lat": 19.062555 },
                                 "shape" : "POINT",
                             # "innerRadius":327674,
                             # "uncertaintyRadius":254,
@@ -1292,7 +1512,7 @@ class SEAL(NetworkExposure_API):
                             # "confidence":80,
                         },
                     ],
-                    "mbmsServiceAreaId":["string"],
+                    "mbmsServiceAreaId":["FFFFFF"], #Unique number between 000000 - FFFFFF to indetify MBMS bearer in PLMN
                     "civicAddres":[{
                             "country":"Hungary",
                             "A1":"A1",
@@ -1326,7 +1546,7 @@ class SEAL(NetworkExposure_API):
                             "PRM":"PRM",
                             "POM":"POM",
                             "usageRules":"Authorized only",
-                            "method":"HTTP",
+                            "method":"HTTPS",
                             "providedBy":"User",
                     }],
             },
@@ -1341,9 +1561,9 @@ class SEAL(NetworkExposure_API):
                     "mbmsGwIpv4SsmAddr":"198.51.100.2",
                     "mbmsGwIpv6SsmAddr":"2001:db8:85a3::8a2e:370:7336",
                     "cteid":"string",
-                    "bmscIpv4Addr":"198.51.100.3",
+                    "bmscIpv4Addr":"10.1.1.2",
                     "bmscIpv6Addr":"2001:db8:85a3::8a2e:370:7337",
-                    "bmscPort":5550,
+                    "bmscPort":7777,
             },
             "localMbmsActInd":True,
             "notifUri":"https://www.example.com",
@@ -1363,6 +1583,7 @@ class SEAL(NetworkExposure_API):
             try:
                 start = time.time() * 1000
                 print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="POST")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
@@ -1370,11 +1591,13 @@ class SEAL(NetworkExposure_API):
                     req.add_header('Location', self.multiSubId)
                 r = request.urlopen(req, data=post_data)
                 r_data = r.read().decode('utf-8')
+                
                 end = time.time() * 1000
                 print("Receiving request response: %f ms" %end)
                 delay = end - start
                 print("Roundtrip Delay: %f ms" %delay)
                 print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("Multicast-Subscription POST %f ms" %delay)
                 # print(r)
                 # print("\n\n")
                 # print(json.loads(r))
@@ -1382,10 +1605,26 @@ class SEAL(NetworkExposure_API):
                 # print(json.loads(r)['Location'])
                 # self.multiSubId = json.loads(r)['Location']#r.getheader('Location')
                 # print("multiSubId : " + str(self.multiSubId))
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1414,15 +1653,41 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+
                 req = request.Request(url, method="GET")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 r = request.urlopen(req, data=post_data).read().decode('utf-8')
                 print(r)
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("Multicast-Subscription GET %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1447,16 +1712,44 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="DELETE")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 r = request.urlopen(req, data=post_data).read().decode('utf-8')
                 print(r)
                 self.multiSubId = None
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("Multicast-Subscription DELETE %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            i = 1
+                            while(hasattr(e, 'reason') and i < 10):
+                                time.sleep(10)
+                                i += 1
+                                try:
+                                    r = request.urlopen(req, data=post_data)
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1478,7 +1771,7 @@ class SEAL(NetworkExposure_API):
         
 
         post_data = {
-            "valServerId": "valServerId-example",
+            "valServerId": "val-Server-Id-1",
             "valTgtUe": {
                 "valUserId": str(self.deviceID),
                 "valUeId": str(self.deviceID) + "@valdomain.com"
@@ -1508,15 +1801,42 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+
                 req = request.Request(url, method="POST")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("LocationReporting POST %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    response = request.urlopen(req, data=post_data)
+                                    response_data = response.read().decode('utf-8')
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1526,7 +1846,7 @@ class SEAL(NetworkExposure_API):
                 ret_code = 200  
         else:
             response_data = '''{
-                        "valServerId": "valServerId-example",
+                        "valServerId": "val-Server-Id-1",
                         "valTgtUe": {
                             "valUserId": "deviceID",
                             "valUeId":   "deviceID@valdomain.com"
@@ -1561,15 +1881,42 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="GET")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("LocationReporting GET %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    response = request.urlopen(req, data=post_data)
+                                    response_data = response.read().decode('utf-8')
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1579,7 +1926,7 @@ class SEAL(NetworkExposure_API):
                 ret_code = 200  
         else:
             response_data = '''{
-                        "valServerId": "valServerId-example",
+                        "valServerId": "val-Server-Id-example",
                         "valTgtUe": {
                             "valUserId": "deviceID",
                             "valUeId":   "deviceID@valdomain.com"
@@ -1609,7 +1956,7 @@ class SEAL(NetworkExposure_API):
         print("url: " + url)
 
         post_data = {
-            "valServerId": "valServerId-example",
+            "valServerId": "val-Server-Id-example",
             "valTgtUe": {
                 "valUserId": str(self.deviceID+"2"),
                 "valUeId": str(self.deviceID+"2") + "@valdomain.com"
@@ -1617,7 +1964,15 @@ class SEAL(NetworkExposure_API):
             "immRep": True,
             "monDur": datetime.now(timezone.utc).isoformat()+"Z", #"2024-12-5T09:12:28Z",
             "repPeriod": 1000,
-            "accuracy": "ENODEB",
+            "accuracy": "ENODEB"
+                        # - CGI_ECGI
+                        # - ENODEB
+                        # - TA_RA
+                        # - PLMN
+                        # - TWAN_ID
+                        # - GEO_AREA
+                        # - CIVIC_ADDR
+            ,
         }
     
 
@@ -1630,15 +1985,42 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="PUT")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req,data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("LocationReporting PUT %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    response = request.urlopen(req, data=post_data)
+                                    response_data = response.read().decode('utf-8')
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1708,15 +2090,42 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                
                 req = request.Request(url, method="PATCH")
                 req.add_header('Content-Type', 'application/merge-patch+json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("LocationReporting PATCH %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    response = request.urlopen(req, data=post_data)
+                                    response_data = response.read().decode('utf-8')
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1726,7 +2135,7 @@ class SEAL(NetworkExposure_API):
                 ret_code = 200  
         else:
             response_data = '''{
-                        "valServerId": "valServerId-example",
+                        "valServerId": "val-Server-Id-example",
                         "valTgtUe": {
                             "valUserId": "deviceID",
                             "valUeId":   "deviceID@valdomain.com"
@@ -1761,15 +2170,42 @@ class SEAL(NetworkExposure_API):
 
         if self.local_test == 0:
             try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+
                 req = request.Request(url, method="DELETE")
                 req.add_header('Content-Type', 'application/json')
                 req.add_header('Authorization', 'Bearer ' + self.auth_token)
                 response = request.urlopen(req, data=post_data)
                 response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("LocationReporting DELETE %f ms" %delay)
+
             except error.URLError as e:
                 if hasattr(e, 'reason'):
                     print('We failed to reach a server.')
                     print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    response = request.urlopen(req, data=post_data)
+                                    response_data = response.read().decode('utf-8')
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
                 elif hasattr(e, 'code'):
                     print('The server couldn\'t fulfill the request.')
                     print('Error code: ', e.code)
@@ -1779,7 +2215,7 @@ class SEAL(NetworkExposure_API):
                 ret_code = 200  
         else:
             response_data = '''{
-                        "valServerId": "valServerId-example",
+                        "valServerId": "val-Server-Id-example",
                         "valTgtUe": {
                             "valUserId": "deviceID",
                             "valUeId":   "deviceID@valdomain.com"
@@ -1802,3 +2238,369 @@ class SEAL(NetworkExposure_API):
         print("DATA accessed (deleted if empty): \n%s\n\n"%json.dumps(response_data))
         #breakpoint()
         return 200
+    
+
+
+
+    def LocationAreaInfoRetrieval(self, loc_type = "enodeBId", loc = "4847"):
+        local_test = 1
+
+        url = self.url_SEAL + "ss-lair/v1/location-retrievals"
+        print("url: " + url)
+        post_data = {}
+        query1 = { #LocationInfo 
+            "ageOfLocationInfo": 0,
+            "cellId": "1240838",#"216-30-12007-1240838",
+            "enodeBId": "4837",
+            "routingAreaId": "string",
+            "trackingAreaId": "string",
+            "plmnId": json.dumps({"mcc": "216",   "mnc": "30",}),
+            "twanId": "TWAN Identity",
+            "geographicArea":{   
+                                "point":{ "lon": 47.471039, "lat": 19.062555 },
+                                "shape" : "POINT",
+                                # "innerRadius":327674,
+                                # "uncertaintyRadius":254,
+                                # "offsetAngle":180,
+                                # "includedAngle":180,
+                                # "confidence":80,
+                            },
+            "civicAddress":{ 
+                                    "country":"Hungary",
+                                    "A1":"A1",
+                                    "A2":"A2",
+                                    "A3":"A3",
+                                    "A4":"A4",
+                                    "A5":"A5",
+                                    "A6":"A6",
+                                    "PRD":"PRD",
+                                    "POD":"POD",
+                                    "STS":"STS",
+                                    "HNO":"HNO",
+                                    "HNS":"HNS",
+                                    "LMK":"LMK",
+                                    "LOC":"LOC",
+                                    "NAM":"NAM",
+                                    "PC":"PC",
+                                    "BLD":"BLD",
+                                    "UNIT":"UNIT",
+                                    "FLR":"FLR",
+                                    "ROOM":"ROOM",
+                                    "PLC":"PLC",
+                                    "PCN":"PCN",
+                                    "POBOX":"POBOX",
+                                    "ADDCODE":"ADDCODE",
+                                    "SEAT":"SEAT",
+                                    "RD":"RD",
+                                    "RDSEC":"RDSEC",
+                                    "RDBR":"RDBR",
+                                    "RDSUBBR":"RDSUBBR",
+                                    "PRM":"PRM",
+                                    "POM":"POM",
+                                    "usageRules":"Authorized only",
+                                    "method":"HTTP",
+                                    "providedBy":"OPC-UA-subscription-SEAL-User",
+                            },
+            "positionMethod":"ENODEB",
+                            # - CELLID
+                            # - ECID
+                            # - OTDOA
+                            # - BAROMETRIC_PRESSURE
+                            # - WLAN
+                            # - BLUETOOTH
+                            # - MBS
+                            # - MOTION_SENSOR
+                            # - DL_TDOA
+                            # - DL_AOD
+                            # - MULTI-RTT
+                            # - NR_ECID
+                            # - UL_TDOA
+                            # - UL_AOA
+                            # - NETWORK_SPECIFIC
+            "qosFulfilInd":"REQUESTED_ACCURACY_FULFILLED",
+            "ueVelocity":{ #HorizontalWithVerticalVelocityAndUncertainty
+                    "hSpeed": 100,              #Horizontal speed: 0 - 2047 (float)                         HorizontalVelocity
+                    "bearing": 30,              #Horizontal orientation: 0 - 360 (float)                    HorizontalVelocity
+                    },
+            "ldrType":"BEING_INSIDE_AREA"
+                        # - UE_AVAILABLE
+                        # - PERIODIC
+                        # - ENTERING_INTO_AREA
+                        # - LEAVING_FROM_AREA
+                        # - BEING_INSIDE_AREA
+                        # - MOTION
+            ,
+            "achievedQos":{
+                "hAccuracy": 0.0,
+                "vAccuracy": 0.0
+            }
+        }
+        if (loc_type == 'enodeBId'):
+            query1['enodeBId'] == loc
+            query1['positionMethod'] == "ECID" #CELLID, ECID, NR_ECID
+        else:
+            if (loc_type == 'routingAreaId'):
+                query1['routingAreaId'] == loc
+                query1['positionMethod'] == "NETWORK_SPECIFIC"
+
+            elif (loc_type == 'trackingAreaId'):
+                query1['trackingAreaId'] == loc
+                query1['positionMethod'] == "NETWORK_SPECIFIC"
+
+            elif (loc_type == 'plmnId'):
+                query1['plmnId'] == loc
+                query1['positionMethod'] == "NR_ECID"#"NETWORK_SPECIFIC"
+
+            elif (loc_type == 'twanId'):
+                query1['twanId'] == loc
+                query1['positionMethod'] == "WLAN"
+
+            elif (loc_type == 'geographicArea'):
+                query1['geographicArea'] == loc
+                query1['positionMethod'] == "OTDOA"
+
+            elif (loc_type == 'civicAddress'):
+                query1['civicAddress'] == loc
+                query1['positionMethod'] == "CIVIC_LOOKUP" #NETWORK_SPECIFIC, MOTION_SENSOR, CIVIC_LOOKUP
+            
+            elif (loc_type == "cellid"):
+                query1['cellid'] == loc #216-30-12007-1240836
+                query1['positionMethod'] == "CELLID" #CELLID, ECID, NR_ECID
+
+            elif loc == "4847" and (loc_type != "enodeBId" or loc_type != "ENODEB"):
+                print("Location incorrect")
+                raise ValueError
+  
+        # query1['qosFulfilInd'] == ""
+                
+        query2 = 150.02; #range
+
+        params = flatten_dict(query1, parent_key="location-info")
+        # # params = {f"location-info[{k}]=": v for k, v in query1.items()}
+        params["range"] = query2
+        # params = {"location-info": json.dumps(query1, separators=(",", ":")), "range": query2}
+
+        # params = {
+        #     "location-info[positionMethod]": "enodeBId",
+        #     "location-info[enodeBId]": 4847,
+        #     "range": query2
+        # }
+
+        # params = {"location-info": query1, "range": query2}
+
+        # params = {"location-info": query1, "range": query2}
+
+        # query_string = parse.quote(json.dumps(query1))
+        # query_string = flatten_dict(query1)
+        # # url = f"{url}?{query_string}"
+        # # query_string = parse.urlencode(query1)
+        # # print(url + "?location-info=" +query_string +"&range=%f"%query2)
+        # # url = f"{url}?location-info={ query_string }&range={query2}"
+        # # url= url + "?location-info=" +query_string +"&range=%f"%query2
+
+        url = url +"?location-info=%s&range=%f"%(json.loads(query1),query2)
+
+        response = None
+        response_data = None
+        
+        
+        print(url)
+
+        if self.local_test == 0:
+            try:
+                start = time.time() * 1000
+                print("Sending request: %f ms" %start)
+                # response =requests.get(url, params=params, json=query1, headers={ 'Authorization': 'Bearer ' + self.auth_token}, timeout=10)
+                req = request.Request(url, method="GET")
+                req.add_header('Authorization', 'Bearer ' + self.auth_token)
+                
+                response = request.urlopen(req, data=post_data, timeout=10)
+                response_data = response.read().decode('utf-8')
+
+                end = time.time() * 1000
+                print("Receiving request response: %f ms" %end)
+                delay = end - start
+                print("Roundtrip Delay: %f ms" %delay)
+                print("Oneway Delay: ~%f ms (+half of message processing time of server)" %(delay/2))
+                print("LocationAreaInfoRetrieval GET %f ms" %delay)
+
+            except error.URLError as e:
+                if hasattr(e, 'reason'):
+                    print('We failed to reach a server.')
+                    print('Reason: ', e.reason)
+                    if (hasattr(e, 'reason')):
+                            while(hasattr(e, 'reason')):
+                                time.sleep(10)
+                                try:
+                                    # response = requests.get(url, params=params, headers={'Authorization': 'Bearer ' + self.auth_token}, timeout=10)
+                                    response = request.urlopen(req, data=post_data)
+                                    response_data = response.read().decode('utf-8')
+                                    return
+                                except error.URLError as es:
+                                    e = es
+                                    if hasattr(e, 'reason'):
+                                        print('We failed to reach a server.')
+                                        print('Reason: ', e.reason)
+                                    elif hasattr(e, 'code'):
+                                        print('The server couldn\'t fulfill the request.')
+                                        print('Error code: ', e.code)
+                                        return
+                elif hasattr(e, 'code'):
+                    print('The server couldn\'t fulfill the request.')
+                    print('Error code: ', e.code)
+            else:
+                # everything is fine
+                # not used
+                ret_code = 200  
+        else:
+            # resp = '''{
+            #             "valServerId": "val-Server-Id-1",
+            #             "valTgtUe": {
+            #                 "valUserId": "deviceID",
+            #                 "valUeId":   "deviceID@valdomain.com"
+            #             },
+            #             "immRep": "True",
+            #             "monDur": "2024-12-5T09:12:28Z",
+            #             "repPeriod": 1000,
+            #             "accuracy": "GEO_AREA",
+            #             "suppFeat": "FFFF"
+            #         }'''
+            
+            response_data = {
+                    "valTgtUe": {
+                        "valUserId":"deviceID",
+                        "valUeId":"deviceID@valdomain.com",
+                    },
+                    "locInfo": {
+                        "ageOfLocationInfo": 0,#Integer (int32): minimum 0
+                        "cellId": "Cella_ID_string_example",
+                        "enodeBId": "enodeB_Identifier_string",
+                        "routingAreaId": "string",
+                        "trackingAreaId": "string",
+                        "plmnId": "PLMN Identity",
+                        "twanId": "TWAN Identity",
+                        "geographicArea":#[ #minimum array length: 1
+                                {   
+                                    "point":{ 
+                                            "lon": 47.47131, 
+                                            "lat": 19.062889,
+                                            # "innerRadius":327674,
+                                            # "uncertaintyRadius":254,
+                                            # "offsetAngle":180,
+                                            # "includedAngle":180,
+                                            # "confidence":80,
+                                    },
+                                    "shape":"POINT",  
+                                    #"shape" : "POINT",
+                                    # - POINT
+                                    # - POINT_UNCERTAINTY_CIRCLE
+                                    # - POINT_UNCERTAINTY_ELLIPSE
+                                    # - POLYGON
+                                    # - POINT_ALTITUDE
+                                    # - POINT_ALTITUDE_UNCERTAINTY
+                                    # - ELLIPSOID_ARC
+                                    # - LOCAL_2D_POINT_UNCERTAINTY_ELLIPSE
+                                    # - LOCAL_3D_POINT_UNCERTAINTY_ELLIPSOID
+                                },
+                            #],
+                        "civicAddress":#[ #minimum array length: 1
+                            { 
+                                    "country":"Hungary",
+                                    "A1":"A1",
+                                    "A2":"A2",
+                                    "A3":"A3",
+                                    "A4":"A4",
+                                    "A5":"A5",
+                                    "A6":"A6",
+                                    "PRD":"PRD",
+                                    "POD":"POD",
+                                    "STS":"STS",
+                                    "HNO":"HNO",
+                                    "HNS":"HNS",
+                                    "LMK":"LMK",
+                                    "LOC":"LOC",
+                                    "NAM":"NAM",
+                                    "PC":"PC",
+                                    "BLD":"BLD",
+                                    "UNIT":"UNIT",
+                                    "FLR":"FLR",
+                                    "ROOM":"ROOM",
+                                    "PLC":"PLC",
+                                    "PCN":"PCN",
+                                    "POBOX":"POBOX",
+                                    "ADDCODE":"ADDCODE",
+                                    "SEAT":"SEAT",
+                                    "RD":"RD",
+                                    "RDSEC":"RDSEC",
+                                    "RDBR":"RDBR",
+                                    "RDSUBBR":"RDSUBBR",
+                                    "PRM":"PRM",
+                                    "POM":"POM",
+                                    "usageRules":"Authorized only",
+                                    "method":"HTTP",
+                                    "providedBy":"OPC-UA-subscription-SEAL-User",
+                            },
+                        #],
+                        "positionMethod": "CELLID",
+                                        # - CELLID
+                                        # - ECID
+                                        # - OTDOA
+                                        # - BAROMETRIC_PRESSURE
+                                        # - WLAN
+                                        # - BLUETOOTH
+                                        # - MBS
+                                        # - MOTION_SENSOR
+                                        # - DL_TDOA
+                                        # - DL_AOD
+                                        # - MULTI-RTT
+                                        # - NR_ECID
+                                        # - UL_TDOA
+                                        # - UL_AOA
+                                        # - NETWORK_SPECIFIC
+                        "qosFulFilInd": "REQUESTED_ACCURACY_FULFILLED",
+                                        # - REQUESTED_ACCURACY_FULFILLED
+                                        # - REQUESTED_ACCURACY_NOT_FULFILLED  
+                        "ueVelocity": { #HorizontalWithVerticalVelocityAndUncertainty
+                            "hSpeed": 100,                #Horizontal speed: 0 - 2047 (float)                         HorizontalVelocity
+                            "bearing": 30,                #Horizontal orientation: 0 - 360 (float)                    HorizontalVelocity
+                            # "vSpeed": 0,                #Vertical speed: 0 - 255 (float)                            HorizontalWithVerticalVelocity
+                            # "vDirection": "DOWNWARD",   #Dir of vertical speed: UPWARD / DOWNWARD                   HorizontalWithVerticalVelocity
+                            # "hUncertainty": 0,          #Indicates value of speed uncertainty: 0 - 255 (float)      HorizontalWithVerticalVelocityAndUncertainty
+                            # "vUncertainty": 0           #Same for vSpeed                                            HorizontalWithVerticalVelocityAndUncertainty
+                        },
+                            # HorizontalVelocity
+                            # HorizontalWithVerticalVelocity
+                        "ldrType": "BEING_INSIDE_AREA",
+                                    # - UE_AVAILABLE
+                                    # - PERIODIC
+                                    # - ENTERING_INTO_AREA
+                                    # - LEAVING_FROM_AREA
+                                    # - BEING_INSIDE_AREA
+                                    # - MOTION
+                        "achievedQos":{
+                            "hAccuracy": 0.5, #min val 0 float
+                            "vAccuracy": 0.5
+                        }
+                    },
+                    "timeStamp": "2024-12-5T09:12:28Z",
+                    "valSvcId":"string"
+                }
+
+        try:
+            self.LocationArea = response.getheader('Location') 
+        except Exception as e:
+            print(response_data)
+            data = json.loads(response_data)
+            self.LocationArea = data['resUri']
+        
+        print("LocationArea : " + str(self.LocationArea))
+        print("DATA accessed : \n%s\n\n"%json.dumps(response_data))
+        #breakpoint()
+        return 200
+
+
+
+
+
+
+
