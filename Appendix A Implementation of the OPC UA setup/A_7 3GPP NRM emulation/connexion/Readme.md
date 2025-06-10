@@ -23,6 +23,8 @@
  ## How to run
  To run it use simply [ python3 Connexion.py ] command in terminal or use the Mininet test to run everything on an emulated network.
  
-
+ ```
+ python3 Connexion.py
+ ```
  
  
