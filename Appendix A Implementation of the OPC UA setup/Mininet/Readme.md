@@ -18,7 +18,7 @@ Success and failure to set values is sent back.
 The "NRM_sim_server_short_test_with_vlan" sets bandwidth and delay similarly to the "NRM_sim_server_short_test_no_vlan".
 The difference is, that the hosts are replaced with VLANHOSTs, which use VLAN tags. The VLAN IDs are configured at start and NRM server can change them, when receiving Group Management requests (POST, PATCH, PUT).
 
-## How to run
+## How to run 
 
 NRM_sim_server_short_test_no_vlan
 
@@ -31,3 +31,5 @@ NRM_sim_server_short_test_with_vlan
 ```
 python3 NRM_sim_server_short_test_with_vlan.py
 ```
+
+Commands were run from the tests folder.
