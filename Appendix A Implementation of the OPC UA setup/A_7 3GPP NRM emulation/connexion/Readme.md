@@ -1,9 +1,9 @@
- #Python code using Connexion to emulate NRM server.
+ # Python code using Connexion to emulate NRM server.
  Expects 3GPP API requests found in "/connexion-example-master/yaml/" folder.
  This example doesn't use authentication process only an access token, which is hard coded into the server.
  This is for testing and proof concept only.
 
- ##Implemented APIs
+ ## Implemented APIs
  The NRM server simulation (Connexion.py) has the following APIs implemented:
  *TS29549_SS_NetworkResourceAdaptation
   *(unicast-subscriptions and multicast-subscriptions)
@@ -11,7 +11,7 @@
  *TS29549_SS_LocationReporting
  *TS29549_SS_LocationAreaInfoRetrieval
 
- ##NRM server behaviour
+ ## NRM server behaviour
  The NRM server uses MySQL database server to store registered requests and their last state in case of a crash or sudden shutdown.
  It communicates with the Mininet controller UNIX socket server to set the bandwidth, delay, vlan setting of ues and communication links of the network emulated with Mininet.
  For testing purposes the delay will be set by either the cellid or geo location reported by user device.
@@ -20,7 +20,7 @@
  The NRM server caches requests for faster response time. It also stores the simulated location reports, but only in memory.
 
  
- ##How to run
+ ## How to run
  To run it use simply [ python3 Connexion.py ] command in terminal or use the Mininet test to run everything on an emulated network.
  
 
