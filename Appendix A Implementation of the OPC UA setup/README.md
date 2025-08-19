@@ -34,5 +34,7 @@ Contains the Mosquitto MQTT broker configurations used for testing OPC-UA commun
 
 # Demo video for the Mininet test case:NRM_sim_server_short_test_no_vlan_ordered_links.py
 Link to the demo on YouTube: 
+
 [![Video Title](https://img.youtube.com/vi/DcJuJ1ulcW8/0.jpg)](https://www.youtube.com/watch?v=DcJuJ1ulcW8)
-Or just the link in non-embeded format: [Youtube link](https://youtu.be/DcJuJ1ulcW8)
+
+Or just the link in non-embeded format: [YouTube link](https://youtu.be/DcJuJ1ulcW8)
