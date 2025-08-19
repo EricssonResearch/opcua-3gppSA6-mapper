@@ -236,11 +236,60 @@ def main():
     except FileNotFoundError:
         pass
 
-    custtopo = CustomTopo()
-    net = Mininet( topo=custtopo,
-                   build=False,
-                   ipBase='10.0.0.0/8')
+    # custtopo = CustomTopo()
+    # net = Mininet( topo=custtopo,
+    #                build=False,
+    #                ipBase='10.0.0.0/8')
+    net = Mininet( topo=None,
+                    build=False,
+                    ipBase='10.0.0.0/8')
 
+##>>Build the intended topology
+    global links
+    info( '*** Adding controller\n' )
+    info( '*** Add node (router)\n' )
+    info( '*** Add switches\n')
+    #TODO: Add node as a router, which has IPv4 forwarding enabled (LinuxRouter)
+    r1 = net.addHost('r1', cls=LinuxRouter, ip="10.1.1.1/24", mac="AA:00:00:00:00:00")
+        
+##Can add multiple switches for emulating hosts at multiple locations
+    #TODO: Add switches and set stp to 1 for dynamic mapping
+    s1 = net.addSwitch('s1',  cls=OVSKernelSwitch, failMode='standalone', stp=1) #ip='10.1.1.255/24',
+    s2 = net.addSwitch('s2',  cls=OVSKernelSwitch, failMode='standalone', stp=1) #ip='10.1.2.255/24',
+    s3 = net.addSwitch('s3',  cls=OVSKernelSwitch, failMode='standalone', stp=1) #ip='10.1.3.255/24',
+    s4 = net.addSwitch('s4',  cls=OVSKernelSwitch, failMode='standalone', stp=1) #ip='10.1.4.255/24',
+
+        
+#Adding hosts
+    #TODO: Set default route for routing and parse IP, MAC and CLS of hosts
+    info( '*** Add hosts\n')
+    talker_host = net.addHost('publisher', cls=Host, ip='10.1.1.2/24', mac='BB:00:00:00:00:10' ,defaultRoute='via 10.1.1.1') #, vlan = 10
+    cloud_listener_host = net.addHost('cloud_b', cls=Host, ip='10.1.2.2/24', mac='CC:00:00:00:00:20', defaultRoute='via 10.1.2.1' ) #, vlan = 20
+    subscriber_host = net.addHost('subscriber', cls=Host, ip='10.1.3.2/24', mac='DD:00:00:00:00:30', defaultRoute='via 10.1.3.1' ) #, vlan = 30
+    capif_host = net.addHost('capif', cls=Host, ip='10.1.4.2/24', mac='EE:00:00:00:00:040', defaultRoute='via 10.1.4.1' ) #, vlan = 40
+    NR_server_sim_host = net.addHost('connexion', cls=Host, ip='10.1.2.50/24', mac='CC:00:00:00:00:50', defaultRoute='via 10.1.2.1' ) #, vlan = 50
+    # local = self.addHost('local', cls=VLANHost, inNamespace=False) ## for mininet control
+
+    info( '*** Add links\n')
+#QoS setting for tc-flow(s)
+    #wifi_qos = {'bw':50,'delay':'20ms','loss':1,'max_queue_size':10,'jitter':'5'}
+    wifi_qos = {'bw':50,'delay':'0ms','loss':0,'max_queue_size':10,'jitter':'0'}
+        
+        
+#TODO tc-flow
+    links["L1"] = net.addLink(s1, r1, intfName='s1-eth1', intfName2='r1-eth1', cls=TCLink, **wifi_qos, params2={'ip' : '10.1.1.1/24'}) #Link between Router and Switch 1
+    links["L2"] = net.addLink(s2, r1, intfName='s2-eth1', intfName2='r1-eth2', cls=TCLink, **wifi_qos, params2={'ip' : '10.1.2.1/24'}) #Link between Router and Switch 2
+    links["L3"] = net.addLink(s3, r1, intfName='s3-eth1', intfName2='r1-eth3', cls=TCLink, **wifi_qos, params2={'ip' : '10.1.3.1/24'}) #Link between Router and Switch 3
+    links["L4"] = net.addLink(s4, r1, intfName='s4-eth1', intfName2='r1-eth4', cls=TCLink, **wifi_qos, params2={'ip' : '10.1.4.1/24'}) #Link between Router and Switch 4
+    links["L5"] = net.addLink(s1, talker_host, intfName='s1-eth2', intfName2='publisher-eth0', cls=TCLink , **wifi_qos) #OPC UA publisher
+    links["L6"] = net.addLink(s2, cloud_listener_host, intfName='s2-eth2', intfName2='cloud-eth0', cls=TCLink , **wifi_qos) #Cloud MQTT broker
+    links["L7"] = net.addLink(s3, subscriber_host, intfName='s3-eth2', intfName2='subscriber-eth0', cls=TCLink , **wifi_qos) #OPC UA subscriber
+    links["L8"] = net.addLink(s4, capif_host, intfName='s4-eth2', intfName2='capif-eth0', cls=TCLink , **wifi_qos) #CAPIF
+    links["L9"] = net.addLink(s2, NR_server_sim_host, intfName='s2-eth3', intfName2='connexion-eth0', cls=TCLink , **wifi_qos) #NR server simulation
+    #Mininet autmatically links switches, no need to add links between them
+    print(links)
+    
+    #Default network TC-link characteristics for all links
     wifi_qos = {'bw':50,'delay':'0ms','loss':0,'max_queue_size':10,'jitter':'0'}                      
 
     info( '*** Starting network\n')
@@ -248,6 +297,17 @@ def main():
     info( '*** Starting controllers\n')
     # for controller in net.controllers:
     #     controller.start()
+
+    # i=1
+    # for link in net.links:
+    #     links[f"L{i}"] = link 
+    #     i+=1
+    # print(links)
+    for a in links.keys():
+        print(f"{a} : {links[a]}")
+        # print(f"{a} : {links[a].intf1} <-> {links[a].intf2}")
+    time.sleep(5)
+
 
     info( '*** Starting switches\n')
     net.start()
@@ -280,7 +340,7 @@ def main():
     NR_server_database_cmd = "sudo mysql\n\nDROP USER 'admin'@'10.123.123.2';\nflush privileges;\nCREATE USER 'admin'@'10.123.123.2'IDENTIFIED WITH mysql_native_password BY 'Admin1Pass';\nGRANT ALL PRIVILEGES ON *.* TO 'admin'@'10.123.123.2';\nexit\n"
     NR_server_sim_cmd = 'python3 ../../A_7\ 3GPP\ NRM\ emulation/connexion/Connexion.py'
 # #For testing
-    seal_user = 'python3 ../../Seal/seal/seal_user_NRM_tester.py'
+    seal_user = 'python3 ../../SEAL/seal/seal_user_NRM_tester.py'
     # mininet_controll = "python3 ../../A_7\ 3GPP\ NRM\ emulation/connexion/mininet_unix_server_sim2.py"
 
 
@@ -518,6 +578,7 @@ def main():
                     
                     #Delay change because of distance
                     if command[1] == "delay":
+                        #Check if delay is a number (float/int)
                         delay = int(command[2]) if command[2].isdigit() else None
                         if delay is None:
                             delay = float(command[2]) if isfloat(command[2]) else None
@@ -526,21 +587,25 @@ def main():
                             custom_wifi_qos = dict(wifi_qos)
                             # custom_wifi_qos['delay'] = str(delay) + " ms"
                             try:
-                                custom_wifi_qos['delay'] = str(float(delay)+"ms")
+                                custom_wifi_qos['delay'] = str(f"{round(float(delay), 3)}{data['delay_ext']}" )
                             except:
-                                custom_wifi_qos['delay'] = str(int(delay)+"ms")
-                            #respond(sock,address, "Setting delay to %s\n" % (custom_wifi_qos['delay']))
-                            print(sock,address, "Setting delay to %f\n%s\n" % (delay, custom_wifi_qos['delay']))
-                            # links[command[0]].intf1.config(delay=delay)
-                            # links[command[0]].intf2.config(delay=delay)
-                            links[command[0]].intf1.config(**custom_wifi_qos)
-                            links[command[0]].intf2.config(**custom_wifi_qos)
+                                custom_wifi_qos['delay'] = str(f"{int(delay)}{data['delay_ext']}" )
+                            
                             print(custom_wifi_qos)
-                            respond(sock,address, "Setting delay to %f\n%s\n" % (delay,custom_wifi_qos['delay']))
+                            print(sock,address, "Setting delay to %f\n%s\n" % (delay, custom_wifi_qos['delay']))
+                            
+                            print(command[0])
+                            print(links[command[0]])
+                            links[command[0]].intf1.config(delay=custom_wifi_qos['delay'])
+                            links[command[0]].intf2.config(delay=custom_wifi_qos['delay'])
+                            # links[command[0]].intf1.config(**custom_wifi_qos)
+                            # links[command[0]].intf2.config(**custom_wifi_qos)
+                            # links[command[0]].config(delay = custom_wifi_qos['delay'])
+                            print("Setting delay to %f (%s)" % (delay,custom_wifi_qos['delay']))
+                            respond(sock,address, "Setting delay to %f (%s)" % (delay,custom_wifi_qos['delay']))
                             
                         else:
                             respond(sock,address, "<Link (%s)> <bandwidth>\n" % (",".join(links.keys())))
-                    
                 
                     
     except KeyboardInterrupt:
@@ -663,7 +728,7 @@ def start_unix_socket():
     
 def monitor_poll(poller, sock, stdout): # we need sock and stdout, sock is the input commands from mininet_control, stdin is the output of Turlesim, but because now we are running 2 processes in Turtlesim its only for SIGHUP 
     while True:
-        ready = poller.poll( 200 )
+        ready = poller.poll( 50 )
 
         for fd, event in ready:
             if event & select.POLLHUP and fd == stdout.fileno():
