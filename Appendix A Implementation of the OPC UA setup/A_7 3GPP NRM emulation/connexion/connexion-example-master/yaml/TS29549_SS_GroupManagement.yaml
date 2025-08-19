@@ -29,7 +29,7 @@ paths:
   /group-documents:
     post:
       description: Creates a new VAL group document.
-      operationId: CreateValGroupDoc
+      operationId: Connexion.CreateValGroupDoc
       tags:
         - VAL Group Documents (Collection)
       requestBody:
@@ -75,7 +75,7 @@ paths:
           $ref: 'TS29122_CommonData.yaml#/components/responses/default'
     get:
       description: Retrieves VAL group documents satisfying filter criteria
-      operationId: RetrieveValGroupDocs
+      operationId: Connexion.RetrieveValGroupDocs
       tags:
         - VAL Group Documents (Collection)
       parameters:
@@ -125,7 +125,7 @@ paths:
   /group-documents/{groupDocId}:
     get:
       description: Retrieves VAL group information satisfying filter criteria.
-      operationId: RetrieveIndValGroupDoc
+      operationId: Connexion.RetrieveIndValGroupDoc
       tags:
         - Individual VAL Group Document (Document)
       parameters:
@@ -187,7 +187,7 @@ paths:
 
     put:
       description: Updates an individual VAL group document.
-      operationId: UpdateIndValGroupDoc
+      operationId: Connexion.UpdateIndValGroupDoc
       tags:
         - Individual VAL Group Document (Document)
       parameters:
@@ -241,7 +241,7 @@ paths:
           $ref: 'TS29122_CommonData.yaml#/components/responses/default'
     delete:
       description: Deletes a VAL Group.
-      operationId: DeleteIndValGroupDoc
+      operationId: Connexion.DeleteIndValGroupDoc
       tags:
         - Individual VAL Group Document (Document)
       parameters:
@@ -276,7 +276,7 @@ paths:
           $ref: 'TS29122_CommonData.yaml#/components/responses/default'
     patch:
       description: Modify an existing VAL Group document.
-      operationId: ModifyIndValGroupDoc
+      operationId: Connexion.ModifyIndValGroupDoc
       tags:
         - Individual VAL Group Document (Document)
       parameters:

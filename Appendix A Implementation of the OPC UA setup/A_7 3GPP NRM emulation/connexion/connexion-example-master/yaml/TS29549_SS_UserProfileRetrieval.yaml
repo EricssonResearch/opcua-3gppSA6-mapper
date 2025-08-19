@@ -111,6 +111,9 @@ components:
         valUeId:  
           type: string
           description: Unique identifier of a VAL UE.
-      oneOf:
-        - required: [valUserId]
-        - required: [valUeId]
+      # oneOf:
+      required:
+        - valUserId
+        - valUeId
+        # - required: [valUserId]
+        # - required: [valUeId]
