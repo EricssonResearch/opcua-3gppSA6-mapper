@@ -20,4 +20,4 @@ Remote broker in the cloud for connecting provider and subscriber/user:
 mosquitto -c virtual_host.conf
 ```
 
-The codes will be also used in the OPC UA using test (will uploaded later in June 2025).
+These configurations are used in the OPC UA test.

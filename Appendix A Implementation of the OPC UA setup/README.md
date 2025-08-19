@@ -1,12 +1,12 @@
 # Table of contents
-- A_7 3GPP NRM emulation [a relative link](<A_7 3GPP NRM emulation/README.md>)
- - connexion [a relative link](<A_7 3GPP NRM emulation/connexion/README.md>)
-  - Connexion.py and API specifactions (connexion-example-master/yaml [a relative link](<A_7 3GPP NRM emulation/connexion/connexion-example-master/yaml>))
-- CAPIF [a relative link](CAPIF/README.md)
-- Mininet [a relative link](Mininet/README.md)
-- OPC-UA PubSub [a relative link](OPC-UA%20PubSub/README.md)
-- SEAL [a relative link](SEAL/seal/README.md)
-- mosquitto [a relative link](mosquitto/README.md)
+- A_7 3GPP NRM emulation [link to README](<A_7 3GPP NRM emulation/README.md>)
+	- connexion (contains the Connexion.py and the APIs) [link to README](<A_7 3GPP NRM emulation/connexion/README.md>)
+		- API specifactions (connexion-example-master/yaml [link to folder](<A_7 3GPP NRM emulation/connexion/connexion-example-master/yaml>))
+- CAPIF [link](CAPIF/README.md)
+- Mininet [link to README](Mininet/README.md)
+- OPC-UA PubSub [link to README](OPC-UA%20PubSub/README.md)
+- SEAL [link to README](SEAL/seal/README.md)
+- mosquitto [link to README](mosquitto/README.md)
 
 # Small Summary
 
@@ -32,9 +32,9 @@ The SEAL/seal subdirectory contains the Python scripts used to collect 5-tuple a
 Contains the Mosquitto MQTT broker configurations used for testing OPC-UA communication, creating multiple flows using topic bridges.
 
 
-# Demo video for the Mininet test case:NRM_sim_server_short_test_no_vlan_ordered_links.py
+# Demo video for the Mininet test case: NRM_sim_server_short_test_no_vlan_ordered_links.py
 Link to the demo on YouTube: 
 
-[![Video Title](https://img.youtube.com/vi/DcJuJ1ulcW8/0.jpg)](https://www.youtube.com/watch?v=DcJuJ1ulcW8)
+[![3GPP SEAL emulation server](https://img.youtube.com/vi/DcJuJ1ulcW8/0.jpg)](https://www.youtube.com/watch?v=DcJuJ1ulcW8)
 
 Or just the link in non-embeded format: [YouTube link](https://youtu.be/DcJuJ1ulcW8)
