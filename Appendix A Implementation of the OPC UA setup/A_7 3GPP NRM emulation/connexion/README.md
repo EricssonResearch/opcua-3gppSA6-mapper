@@ -28,4 +28,11 @@
  python3 Connexion.py
  ```
  
+ ## For local running wihtout Mininet
+
+ You also has to run a UNIX socket that receives messages from the NRM server and respondes, that the requested resources were granted.
+ Here is the code, which acts like it is the Mininet controll UNIX socket:
+ ```
+ python3 mininet_unix_server_sim.py
+ ```
  
