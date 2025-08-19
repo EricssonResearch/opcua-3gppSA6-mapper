@@ -29,7 +29,7 @@ paths:
   /trigger-configurations:
     post:
       description: Creates a new location reporting configuration.
-      operationId: CreateLocReportingConfig
+      operationId: Connexion.CreateLocReportingConfig
       tags:
         - SEAL Location Reporting Configurations (Collection)
       requestBody:
@@ -77,7 +77,7 @@ paths:
   /trigger-configurations/{configurationId}:
     get:
       description: Retrieves an individual SEAL location reporting configuration information.
-      operationId: RetrieveLocReportingConfig
+      operationId: Connexion.RetrieveLocReportingConfig
       tags:
         - Individual SEAL Location Reporting Configuration (Document)
       parameters:
@@ -118,7 +118,7 @@ paths:
           $ref: 'TS29122_CommonData.yaml#/components/responses/default'
     put:
       description: Updates an individual SEAL location reporting configuration.
-      operationId: UpdateLocReportingConfig
+      operationId: Connexion.UpdateLocReportingConfig
       tags:
         - Individual SEAL Location Reporting Configuration (Document)
       parameters:
@@ -172,7 +172,7 @@ paths:
           $ref: 'TS29122_CommonData.yaml#/components/responses/default'
     delete:
       description: Deletes an individual SEAL location reporting configuration.
-      operationId: DeleteLocReportingConfig
+      operationId: Connexion.DeleteLocReportingConfig
       tags:
         - Individual SEAL Location Reporting Configuration (Document)
       parameters:
@@ -207,7 +207,7 @@ paths:
           $ref: 'TS29122_CommonData.yaml#/components/responses/default'
     patch:
       description: Modify an existing SEAL Location Reporting Configuration.
-      operationId: ModifyLocReportingConfig
+      operationId: Connexion.ModifyLocReportingConfig
       tags:
         - Individual SEAL Location Reporting Configuration (Document)
       parameters:

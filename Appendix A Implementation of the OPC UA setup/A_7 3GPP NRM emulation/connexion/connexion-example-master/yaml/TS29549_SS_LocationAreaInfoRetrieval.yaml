@@ -30,7 +30,7 @@ paths:
     get:
       description: >
         Retrieve the UE(s) information in an application defined proximity range of a location.
-      operationId: RetrieveUeLocInfo
+      operationId: Connexion.RetrieveUeLocInfo
       tags:
         - Location Information (Collection)
       parameters:
