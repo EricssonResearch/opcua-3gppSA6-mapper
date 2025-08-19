@@ -304,14 +304,14 @@ def socket_send(request):
                     print("Invalid type")
                     return -300
                 else:
-                    request['delay'] = float(request['delay'])
+                    request['delay'] = round(float(request['delay']), 3)
 
-            print(f"L8 delay {request['delay']} {request['delay_ext']}")
+            print(f"L8 delay {request['delay']}{request['delay_ext']}")
             message = request
             message['command'] = msg
             print(message)
             # client_socket.sendto( json.dumps(message, indent=4, separators=(',', ': ')).encode('utf-8'), socket_path )
-            client_socket.send( json.dumps(message).encode("utf-8"), socket_path  )
+            client_socket.sendto( json.dumps(message, indent=4, separators=(',', ': ')).encode("utf-8"), socket_path  )
             data,address = client_socket.recvfrom(4096)
             if (data):
                 print(data)
@@ -454,6 +454,8 @@ def calculate_gps_dist_for_small_range(poz1, poz2):
     s_lat = radians(float(poz2['lat']))
     s_lon = radians(float(poz2['lon']))
 
+    print("Distance (m):", 6371.01 * acos(sin(f_lat)*sin(s_lat) + cos(f_lat)*cos(s_lat)*cos(f_lon - s_lon)))
+
     return 6371.01 * acos(sin(f_lat)*sin(s_lat) + cos(f_lat)*cos(s_lat)*cos(f_lon - s_lon))
 
 ####Calculate Geo distance from coordinates
@@ -470,6 +472,8 @@ def calculate_gps_dist_for_larger_range(poz1, poz2):
     elif ((poz2['lat'] < -90 or poz2['lat'] > 90) or (poz2['lon'] < -180 or poz2['lon'] > 180)):
         print("Poz2 invalid or out of range value")
         return -1
+    
+    print("Distance (km):", GD((poz1['lat'],poz1['lon']),(poz2['lat'],poz2['lon'])).km)
 
     return GD((poz1['lat'],poz1['lon']),(poz2['lat'],poz2['lon'])).km
 
@@ -524,30 +528,31 @@ def enodeb_to_gps(enb_id):
 
 ####Calculate delay based on distance
 def distance_delay (distance: float, metric: string):
+    delay = 0.0
 
     if (metric == "meter"):
         if (distance <= 1000):
-            delay = 2 
+            delay = 2.0
         elif (distance <= 5000):
-            delay = 5
+            delay = 5.0
         else:
-            delay = 5 * 1 + (distance - 4000)/1000 
+            delay = 5.0 + 1 * (distance - 5000)/1000/50
 
     elif (metric == "kilometer"):
         if (distance <= 1):
-            delay = 2 
+            delay = 2.0
         elif (distance <= 5):
-            delay = 5
+            delay = 5.0
         else:
-            delay = 5 * 1 + (distance - 4)
+            delay = 5.0 + 1 * (distance - 5)/(50)
 
     elif (metric == "miles"):
         if (distance <= 1/1.609):
-            delay = 2 
+            delay = 2.0
         elif (distance <= 5/1.609):
-            delay = 5
+            delay = 5.0
         else:
-            delay = 5 * 1 + (distance - 4/1.609)*1.609 
+            delay = 5.0 + 1 * (distance - 5/1.609)/(50/1.69)
 
     else:
         print("Wrong metric")
@@ -562,55 +567,79 @@ def bw_round_2_dec(string):
     print(speed, level)
     if type(speed) is str:
         speed = float(speed)
-        print(speed)
-
-    #bits from bytes 
-    speed = speed*8 
+        # print(speed)
 
     level = level.lower()
-    # if level == "B/s" or level == "b/s":
-    #     speed = round(speed/1000/1000, 2)
-    # elif level == "KB/s" or level == "kb/s" or level == "kB/s":
-    #     speed = round(speed/1000, 2)
-    # else:
-    #     speed = round(speed, 2)
 
-    if level == "B/s" or level == "b/s":
-        if speed >= 1000000:
-            speed = round(speed/1024/1024, 2)
+
+    if level == "bit/s" or level == "Bit/s":
+        if speed >= 1000*1000:
+            speed = round(speed/1000/1000, 2)
             level = "mbit"
+            # print(f"{speed} {level}")
             return speed, level
         elif speed >= 1000:
-            speed = round(speed/1024, 2)
+            speed = round(speed/1000, 2)
             level = "kbit"
+            # print(f"{speed} {level}")
             return speed, level
         else:
             speed = round(speed, 2)
             level = "bit"
+            # print(f"{speed} {level}")
             return speed, level
-        
-    elif level == "KB/S" or level == "KB/s" or level == "kb/s" or level == "kB/s":
+    elif level == "kbit/s" or level == "Kbit/s":
         if speed >= 1000:
-            speed = round(speed/1024, 2)
+            speed = round(speed/1000, 2)
             level = "mbit"
+            # print(f"{speed} {level}")
             return speed, level
         else:
             speed = round(speed, 2)
             level = "kbit"
+            # print(f"{speed} {level}")
             return speed, level
+    elif level == "mbit/s" or level == "Mbit/s":
+        speed = round(speed, 2)
+        level = "mbit"
+        # print(f"{speed} {level}")
+        return speed, level
     
-    elif level == "MB/S" or level == "MB/s" or level == "mb/s" or level == "mB/s":
-        speed = round(speed, 2)
-        level = "mbit"
-
     else:
-        speed = round(speed, 2)
-        level = "mbit"
+        if level == "B/s" or level == "b/s":
+            if speed >= 1000000:
+                speed = round((speed/1024/1024), 2)
+                level = "mbit"
+                return speed*8, level
+            elif speed >= 1000:
+                speed = round(speed/1024, 2)
+                level = "kbit"
+                return speed, level
+            else:
+                speed = round(speed, 2)
+                level = "bit"
+                return speed, level
+            
+        elif level == "KB/S" or level == "KB/s" or level == "kb/s" or level == "kB/s":
+            if speed >= 1000:
+                speed = round(speed/1024, 2)
+                level = "mbit"
+            else:
+                speed = round(speed, 2)
+                level = "kbit"
+        
+        elif level == "MB/S" or level == "MB/s" or level == "mb/s" or level == "mB/s":
+            speed = round(speed, 2)
+            level = "mbit"
+
+        else:
+            speed = round(speed, 2)
+            level = "mbit"
 
 
-    print(f"{speed} MB/s")
-    print(f"{speed*8} MBit/s")
-    return speed*8, level
+        # print(f"{speed} {level} (byte)")
+        # print(f"{speed*8} {level}")
+        return speed*8, level
 
 
 def bw_adder(ul, ul_type, dl, dl_type):
@@ -639,6 +668,10 @@ def bw_adder(ul, ul_type, dl, dl_type):
         bw_ext = "bit"
 
     return round((ul + dl), 4), bw_ext
+
+
+
+
 
 
 #GroupManagement block
@@ -1662,7 +1695,7 @@ def CreateMulticastSubscription(body):
                     bod = json.loads(body["multiQosReq"])
                     ulBW, utype = bw_round_2_dec(bod["ulBW"])
                     dlBW, dtype = bw_round_2_dec(bod["dlBW"])
-                    print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
+                    # print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
                     bw, bw_ext = bw_adder(ulBW, utype, dlBW, dtype)
                     set_bw = {
                         "min_con" : "bandwidth",
@@ -1670,71 +1703,90 @@ def CreateMulticastSubscription(body):
                         "bw_type": bw_ext,
                         "flowID": bod['flowID'],
                     }
+                    print("%s %s"%(set_bw["bw"], set_bw["bw_type"]))
                     res = socket_send(set_bw)
 
     
                     #Was Location specified?
-                    if ('locaArea' in body):
-                        bod = json.loads(body['locArea'])
+                    if ('locArea' in body.keys()):
+                        print(type(body['locArea']))
+                        print(type(body))
+                        try:
+                            bod = json.loads(body['locArea'])
+                        except:
+                            bod = body['locArea']
+                        print(bod)
                         ##Set current location, calculate distance and set delay, if there is location parameter
-                        if ('geographicArea' in body['locArea']):
-                            gps = {"lat": bod['geographicArea']['point']['lat'], 
-                                "lon": bod['geographicArea']['point']['lon'] }
-                            valuser_current_loc_database[multiSubId] ={"accuracy":"GEO_AREA", 
+                        if ('geographicArea' in bod.keys()):
+                            print(bod['geographicArea'][0])
+                            print(type(bod['geographicArea'][0]))
+                            
+                            gps = {"lat": bod['geographicArea'][0]['point']['lat'],
+                                    "lon": bod['geographicArea'][0]['point']['lon']}
+                            valuser_current_loc_database[multiSubId] = {"accuracy": "GEO_AREA",
                                                                             "locInfo": {
-                                                                                'point':{
-                                                                                        "lat": bod['geographicArea']['point']['lat'], 
-                                                                                        "lon": bod['geographicArea']['point']['lon']
-                                                                                        },
-                                                                                    "shape" : bod['geographicArea']['shape'],
-                                                                                    # "innerRadius":327674,
-                                                                                    # "uncertaintyRadius":254,
-                                                                                    # "offsetAngle":180,
-                                                                                    # "includedAngle":180,
-                                                                                    # "confidence":80,
-                                                                                    },
-                                                                                "timestamp":datetime.datetime.now()
+                                                                                'point': {
+                                                                                    "lat": bod['geographicArea'][0]['point']['lat'],
+                                                                                    "lon": bod['geographicArea'][0]['point']['lon']
+                                                                                },
+                                                                                "shape" : bod['geographicArea'][0]['shape'],
+                                                                                    # "innerRadius": body['geographicArea'][0]['innerRadius'] #327674,
+                                                                                    # "uncertaintyRadius": body['geographicArea'][0]['uncertaintyRadius'] #254,
+                                                                                    # "offsetAngle": body['geographicArea'][0]['offsetAngle'] #180,
+                                                                                    # "includedAngle": body['geographicArea'][0]['includedAngle'] #180,
+                                                                                    # "confidence": body['geographicArea'][0]['confidence'] #80,
+                                                                                },
+                                                                            "timestamp":datetime.datetime.now()
                                                                         }
-                            if 'innerRadius' in bod['geographicArea']:
-                                valuser_current_loc_database[multiSubId]['locInfo']['point']['innerRadius'] = bod['geographicArea']['innerRadius']
-                            if 'uncertaintyRadius' in bod['geographicArea']:
-                                valuser_current_loc_database[multiSubId]['locInfo']['point']['uncertaintyRadius'] = bod['geographicArea']['uncertaintyRadius']
-                            if 'offsetAngle' in bod['geographicArea']:
-                                valuser_current_loc_database[multiSubId]['locInfo']['point']['offsetAngle'] = bod['geographicArea']['offsetAngle']
-                            if 'confidence' in bod['geographicArea']:
-                                valuser_current_loc_database[multiSubId]['locInfo']['point']['confidence'] = bod['geographicArea']['confidence']
-                        elif ('cellid' in body['locArea']):    
+                            if 'innerRadius' in bod['geographicArea'][0].keys():
+                                valuser_current_loc_database[multiSubId]['locInfo']['point']['innerRadius'] = bod['geographicArea'][0]['innerRadius']
+                            if 'uncertaintyRadius' in bod['geographicArea'][0].keys():
+                                valuser_current_loc_database[multiSubId]['locInfo']['point']['uncertaintyRadius'] = bod['geographicArea'][0]['uncertaintyRadius']
+                            if 'offsetAngle' in bod['geographicArea'][0].keys():
+                                valuser_current_loc_database[multiSubId]['locInfo']['point']['offsetAngle'] = bod['geographicArea'][0]['offsetAngle']
+                            if 'confidence' in bod['geographicArea'][0].keys():
+                                valuser_current_loc_database[multiSubId]['locInfo']['point']['confidence'] = bod['geographicArea'][0]['confidence']
+                        elif ('cellid' in body['locArea'].keys()):    
                             for x in enodeB_database:
-                                if x['cellid'] == body['locArea']['cellId']:
-                                    gps = cellid_to_gps({"cellid": body['locArea']['cellId']})
-                                    valuser_current_loc_database[multiSubId] = {"accuracy":"cellid", 
-                                                                                    'locInfo': {
-                                                                                        "cellid": body['locArea']['cellId']
-                                                                                    },
-                                                                                    "timestamp":datetime.datetime.now(),
-                                                                                    }
-                                    break
-                        elif ('enodeBId' in body['locArea']):
+                                for y in bod['LocArea']['cellId']:
+                                    if x['cellid'] == y:
+                                        gps = cellid_to_gps({"cellid": y})
+                                        valuser_current_loc_database[multiSubId] = {"accuracy":"cellid", 
+                                                                                        'locInfo': {
+                                                                                            "cellid": y
+                                                                                        },
+                                                                                        "timestamp":datetime.datetime.now(),
+                                                                                        }
+                                        break
+                        elif ('enodeBId' in body['locArea'].keys()):
                             for x in enodeB_database:
-                                if x['enodeBId'] == body['locArea']['enodeBId']:
-                                    gps = enodeb_to_gps({"enodeBId": body['locArea']['enodeBId']})
-                                    valuser_current_loc_database[multiSubId] = {"accuracy":"ENODEB",
+                                for y in bod['locArea']['enodeBId']:
+                                    if x['enodeBId'] == y:
+                                        gps = enodeb_to_gps({"enodeBId": y})
+                                        valuser_current_loc_database[multiSubId] = {"accuracy":"ENODEB",
                                                                                     "locInfo": {
-                                                                                        "enodeBId": body['locArea']['enodeBId']
+                                                                                        "enodeBId": y
                                                                                     },
                                                                                     "timestamp":datetime.datetime.now(),
                                                                                     }
-                                    break
+                                        break
                         
                         
                         dist = calculate_gps_dist_for_small_range(gps, {"lat": enodeB_database[0]['lat'], "lon": enodeB_database[0]['lon']})
                         delay = distance_delay(dist, "kilometer")
-                        socket_send({
+                        res = socket_send({
                             "min_con": "delay",
                             "delay": delay,
                             "delay_ext": "ms"
                         })
-                        
+                        if (res < 200):
+                            if (res == -2):
+                                print("Error while trying to set delay: Client socket failed to create connection to server")
+                            elif (res == -1):
+                                print("Error while trying to set delay: Unsupported request")
+                            elif (res == -300):
+                                print("Error while trying to set delay: Wrong type")
+
                     # subs_database[multiSubId['multiSubReq']].update(response_data)
                     subs_database[multiSubId] = {
                         "uniSubReq": response_data,
@@ -1848,6 +1900,10 @@ def CreateMulticastSubscription(body):
                 tables = cursor.fetchall()
                 print(tables)
 
+
+
+            
+
             subs_database[multiSubId] = {
                 "multiSubReq":response_data,
                 "subType":subtype,
@@ -1859,10 +1915,12 @@ def CreateMulticastSubscription(body):
             print("Sending response: %f ms" %end)
             print("Full message processing time: %f ms" %(end-start))
 
+            
+
             bod = json.loads(body["multiQosReq"])
             ulBW, utype = bw_round_2_dec(bod["ulBW"])
             dlBW, dtype = bw_round_2_dec(bod["dlBW"])
-            print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
+            # print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
             bw, bw_ext = bw_adder(ulBW, utype, dlBW, dtype)
             set_bw = {
                 "min_con" : "bandwidth",
@@ -1870,6 +1928,7 @@ def CreateMulticastSubscription(body):
                 "bw_type": bw_ext,
                 "flowID": bod['flowID'],
             }
+            print("%s %s"%(set_bw["bw"], set_bw["bw_type"]))
             res = socket_send(set_bw)
 
             if (res < 200):
@@ -1880,69 +1939,89 @@ def CreateMulticastSubscription(body):
                 elif (res == -300):
                     print("Error while trying to set bandwidth: Wrong type")
                 
+            
+
+            #Was Location specified?
+            if ('locArea' in body.keys()):
+                print(type(body['locArea']))
+                print(type(body))
+                try:
+                    bod = json.loads(body['locArea'])
+                except:
+                    bod = body['locArea']
+                print(bod)
 
 
-            # Was Location specified?
-            if ('locaArea' in body):
-                bod = json.loads(body['locArea'])
                 ##Set current location, calculate distance and set delay, if there is location parameter
-                if ('geographicArea' in body['locArea']):
-                    gps = {"lat": bod['geographicArea']['point']['lat'], 
-                        "lon": bod['geographicArea']['point']['lon'] }
-                    valuser_current_loc_database[multiSubId] ={"accuracy":"GEO_AREA", 
+                if ('geographicArea' in bod.keys()):
+                    print(bod['geographicArea'][0])
+                    print(type(bod['geographicArea'][0]))
+                    
+                    gps = {"lat": bod['geographicArea'][0]['point']['lat'],
+                            "lon": bod['geographicArea'][0]['point']['lon']}
+                    valuser_current_loc_database[multiSubId] = {"accuracy": "GEO_AREA",
                                                                     "locInfo": {
-                                                                        'point':{
-                                                                                "lat": bod['geographicArea']['point']['lat'], 
-                                                                                "lon": bod['geographicArea']['point']['lon']
-                                                                                },
-                                                                            "shape" : bod['geographicArea']['shape'],
-                                                                            # "innerRadius":327674,
-                                                                            # "uncertaintyRadius":254,
-                                                                            # "offsetAngle":180,
-                                                                            # "includedAngle":180,
-                                                                            # "confidence":80,
-                                                                            },
+                                                                        'point': {
+                                                                            "lat": bod['geographicArea'][0]['point']['lat'],
+                                                                            "lon": bod['geographicArea'][0]['point']['lon']
+                                                                        },
+                                                                        "shape" : bod['geographicArea'][0]['shape'],
+                                                                        # "innerRadius": body['geographicArea'][0]['innerRadius'] #327674,
+                                                                        # "uncertaintyRadius": body['geographicArea'][0]['uncertaintyRadius'] #254,
+                                                                        # "offsetAngle": body['geographicArea'][0]['offsetAngle'] #180,
+                                                                        # "includedAngle": body['geographicArea'][0]['includedAngle'] #180,
+                                                                        # "confidence": body['geographicArea'][0]['confidence'] #80,
+                                                                        },
                                                                     "timestamp":datetime.datetime.now()
                                                                 }
-                    if 'innerRadius' in bod['geographicArea']:
-                        valuser_current_loc_database[multiSubId]['locInfo']['point']['innerRadius'] = bod['geographicArea']['innerRadius']
-                    if 'uncertaintyRadius' in bod['geographicArea']:
-                        valuser_current_loc_database[multiSubId]['locInfo']['point']['uncertaintyRadius'] = bod['geographicArea']['uncertaintyRadius']
-                    if 'offsetAngle' in bod['geographicArea']:
-                        valuser_current_loc_database[multiSubId]['locInfo']['point']['offsetAngle'] = bod['geographicArea']['offsetAngle']
-                    if 'confidence' in bod['geographicArea']:
-                        valuser_current_loc_database[multiSubId]['locInfo']['point']['confidence'] = bod['geographicArea']['confidence']
-                elif ('cellid' in body['locArea']):    
+                    if 'innerRadius' in bod['geographicArea'][0].keys():
+                        valuser_current_loc_database[multiSubId]['locInfo']['point']['innerRadius'] = bod['geographicArea'][0]['innerRadius']
+                    if 'uncertaintyRadius' in bod['geographicArea'][0].keys():
+                        valuser_current_loc_database[multiSubId]['locInfo']['point']['uncertaintyRadius'] = bod['geographicArea'][0]['uncertaintyRadius']
+                    if 'offsetAngle' in bod['geographicArea'][0].keys():
+                        valuser_current_loc_database[multiSubId]['locInfo']['point']['offsetAngle'] = bod['geographicArea'][0]['offsetAngle']
+                    if 'confidence' in bod['geographicArea'][0].keys():
+                        valuser_current_loc_database[multiSubId]['locInfo']['point']['confidence'] = bod['geographicArea'][0]['confidence']
+                elif ('cellid' in body['locArea'].keys()):    
                     for x in enodeB_database:
-                        if x['cellid'] == body['locArea']['cellId']:
-                            gps = cellid_to_gps({"cellid": body['locArea']['cellId']})
-                            valuser_current_loc_database[multiSubId] = {"accuracy":"cellid", 
-                                                                            'locInfo': {
-                                                                                "cellid": body['locArea']['cellId']
-                                                                            },
-                                                                            "timestamp":datetime.datetime.now(),
-                                                                            }
-                            break
-                elif ('enodeBId' in body['locArea']):
+                        for y in bod['LocArea']['cellId']:
+                            if x['cellid'] == y:
+                                gps = cellid_to_gps({"cellid": y})
+                                valuser_current_loc_database[multiSubId] = {"accuracy":"cellid", 
+                                                                                'locInfo': {
+                                                                                    "cellid": y
+                                                                                },
+                                                                                "timestamp":datetime.datetime.now(),
+                                                                                }
+                                break
+                elif ('enodeBId' in body['locArea'].keys()):
                     for x in enodeB_database:
-                        if x['enodeBId'] == body['locArea']['enodeBId']:
-                            gps = enodeb_to_gps({"enodeBId": body['locArea']['enodeBId']})
-                            valuser_current_loc_database[multiSubId] = {"accuracy":"ENODEB",
+                        for y in bod['locArea']['enodeBId']:
+                            if x['enodeBId'] == y:
+                                gps = enodeb_to_gps({"enodeBId": y})
+                                valuser_current_loc_database[multiSubId] = {"accuracy":"ENODEB",
                                                                             "locInfo": {
-                                                                                "enodeBId": body['locArea']['enodeBId']
+                                                                                "enodeBId": y
                                                                             },
                                                                             "timestamp":datetime.datetime.now(),
                                                                             }
-                            break
+                                break
                 
                 
                 dist = calculate_gps_dist_for_small_range(gps, {"lat": enodeB_database[0]['lat'], "lon": enodeB_database[0]['lon']})
                 delay = distance_delay(dist, "kilometer")
-                socket_send({
+                res = socket_send({
                     "min_con": "delay",
                     "delay": delay,
                     "delay_ext": "ms"
                 })
+                if (res < 200):
+                    if (res == -2):
+                        print("Error while trying to set delay: Client socket failed to create connection to server")
+                    elif (res == -1):
+                        print("Error while trying to set delay: Unsupported request")
+                    elif (res == -300):
+                        print("Error while trying to set delay: Wrong type")
 
 
             # ##Set current location, calculate distance and set delay
@@ -2264,14 +2343,16 @@ def CreateUnicastSubscription(body):
                     bod = json.loads(body["uniQosReq"])
                     ulBW, utype = bw_round_2_dec(bod["ulBW"])
                     dlBW, dtype = bw_round_2_dec(bod["dlBW"])
-
-                    print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
+                    #print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
+                    #bw, bw_ext = bw_adder(ulBW, utype, dlBW, dtype)
                     set_bw = {
                         "min_con" : "bandwidth",
                         "bw":  ( float(ulBW)  + float(dlBW) )* 1.1,
                         "bw_type": dtype,
                         "flowID": bod['flowID'],
                     }
+                    print("%s %s"%(set_bw["bw"], set_bw["bw_type"]))
+                    
                     if set_bw['bw'] == 0.0:
                         set_bw['bw'] = 1.0
                     socked_sent = time.time()*1000
@@ -2337,7 +2418,7 @@ def CreateUnicastSubscription(body):
         while(cursor.execute("SELECT * FROM "+ TABLENAME +" WHERE address = %s", (uniSubId,)) is not None):
             print("Subscription ID is in use. Creating new ID...")
             uniSubId = ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(N))
-
+        tmp = time.time()*1000
         print(json.dumps(body['uniQosReq']))
 
         #if accessToken == 'Bearer ' + TOKEN:
@@ -2403,24 +2484,24 @@ def CreateUnicastSubscription(body):
             
             ##Set requested bandwidth for 
             # print("\n\n")
+            ##Set requested bandwidth for links
             bod = json.loads(body["uniQosReq"])
-            print(bod["ulBW"])
-            print(type(bod["ulBW"]))
-            # print(bod['ulBW'])
-            # print(type(bod['ulBW']))
-            # print("\n\n")
-            print()
             ulBW, utype = bw_round_2_dec(bod["ulBW"])
             dlBW, dtype = bw_round_2_dec(bod["dlBW"])
-            print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
-            bw, bw_ext = bw_adder(ulBW, utype, dlBW, dtype)
+            #print("%s\n%s" %(bod["ulBW"],bod["dlBW"]))
+            #bw, bw_ext = bw_adder(ulBW, utype, dlBW, dtype)
             set_bw = {
                 "min_con" : "bandwidth",
-                "bw":  bw * 1.1,
-                "bw_type": bw_ext,
+                "bw":  ( float(ulBW)  + float(dlBW) )* 1.1,
+                "bw_type": dtype,
                 "flowID": bod['flowID'],
             }
-            print(set_bw)
+            print("%s %s"%(set_bw["bw"], set_bw["bw_type"]))
+            
+            if set_bw['bw'] == 0.0:
+                set_bw['bw'] = 1.0
+            socked_sent = time.time()*1000
+            print("Sent bw update: %f ms\n"%(socked_sent-tmp))
             res = socket_send(set_bw)
 
             if (res < 200):
@@ -2714,7 +2795,12 @@ def CreateLocReportingConfig(body):
         }       
 
         
-        gps = None
+        gps = None# if level == "B/s" or level == "b/s":
+    #     speed = round(speed/1000/1000, 2)
+    # elif level == "KB/s" or level == "kb/s" or level == "kB/s":
+    #     speed = round(speed/1000, 2)
+    # else:
+    #     speed = round(speed, 2)
         dist = None
         ##Set current location, calculate distance and set delay
         #i = random.randint(1,len(enodeB_database)-1) #Randomly set new location
@@ -2809,11 +2895,19 @@ def CreateLocReportingConfig(body):
         #     dist = calculate_gps_dist_for_small_range(valuser_current_loc_database[configurationId]['locInfo']['geo_loc']['point'], home_gps_loc)
         
         delay = distance_delay(dist, 'miles')
-        socket_send({
+        res = socket_send({
             "min_con": "delay",
             "delay": delay,
             "delay_ext": "ms"
         })
+        if (res < 200):
+            if (res == -2):
+                print("Error while trying to set delay: Client socket failed to create connection to server")
+            elif (res == -1):
+                print("Error while trying to set delay: Unsupported request")
+            elif (res == -300):
+                print("Error while trying to set delay: Wrong type")
+
 
 
 
@@ -3103,11 +3197,18 @@ def UpdateLocReportingConfig(configurationId,body):
         #     dist = calculate_gps_dist_for_small_range(valuser_current_loc_database[configurationId]['locInfo']['geo_loc']['point'], home_gps_loc)
         
         delay = distance_delay(dist, "kilometer")
-        socket_send({
+        res = socket_send({
             "min_con": "delay",
             "delay": delay,
             "delay_ext": "ms"
         })
+        if (res < 200):
+            if (res == -2):
+                print("Error while trying to set delay: Client socket failed to create connection to server")
+            elif (res == -1):
+                print("Error while trying to set delay: Unsupported request")
+            elif (res == -300):
+                print("Error while trying to set delay: Wrong type")
 
         loc_rep_database[configurationId]['locReq'].update(response_data)
         loc_rep_database[configurationId]["timestamp"] = datetime.datetime.now()
@@ -3307,11 +3408,18 @@ def ModifyLocReportingConfig(configurationId,body):
 
             
             delay = distance_delay(dist, 'kilometer')
-            socket_send({
+            res = socket_send({
                 "min_con": "delay",
                 "delay": delay,
                 "delay_ext": "ms"
             })
+            if (res < 200):
+                if (res == -2):
+                    print("Error while trying to set delay: Client socket failed to create connection to server")
+                elif (res == -1):
+                    print("Error while trying to set delay: Unsupported request")
+                elif (res == -300):
+                    print("Error while trying to set delay: Wrong type")
 
             loc_rep_database[configurationId]['locReq'].update(response_data)
             loc_rep_database[configurationId]["timestamp"]= datetime.datetime.now()
