@@ -346,7 +346,7 @@ def main():
     bandwidth_cmd = 'python3 ../../OPC-UA\ PubSub/publisher/bw.py'
     #bandwidth_cmd = 'python3 ../../SEAL/seal//publisher/bw.py'
     seal_user = 'python3 ../../SEAL/seal/topic_watcher.py'
-    capif_docker_cmd = 'sudo ~/OpenCAPIF/CAPIF/services/run.sh'
+    capif_docker_cmd = 'sudo ./../../../../OpenCAPIF/capif/services/run.sh'
 
 
     NR_server_database_cmd = "sudo mysql\n\nDROP USER 'admin'@'10.123.123.2';\nflush privileges;\nCREATE USER 'admin'@'10.123.123.2'IDENTIFIED WITH mysql_native_password BY 'Admin1Pass';\nGRANT ALL PRIVILEGES ON *.* TO 'admin'@'10.123.123.2';\nexit\n"
@@ -413,7 +413,7 @@ def main():
     info("\nStarting CAPIF Core Services:  '%s'\n"%capif_docker_cmd)
     #capif = net['capif'].popen(run_in_terminal(net['capif'].pid, capif_docker_cmd), shell=True, stderr=open('/tmp/capif_stderr.log', 'w'))
     #time.sleep(20)
-    capif = net['capif'].cmd(capif_docker_cmd)
+    #capif_process = net['capif'].popen(run_in_terminal(net['capif'].pid, capif_docker_cmd), shell=True,stderr=open('/tmp/capif_stderr.log', 'w'))
 
 
   #Start OPC UA related stuff
@@ -484,8 +484,8 @@ def main():
             #data, address = next(monitor_poll2(poller, sock))
             if data is None:
                 i = 1
-                print("exited, we are exiting as well\n")
-                break
+                # print("exited, we are exiting as well\n")
+                # break
             
             else:
                 print(data)
@@ -780,16 +780,16 @@ def main():
                 print(f"{topic_watcher_process} didn’t terminate in time. Killing...")
                 topic_watcher_process.kill()
         
-        try:
-            capif.terminate()
-            capif.wait(timeout=5)
-        except capif.TimeoutExpired:
-            print(f"{capif} didn’t terminate in time. Killing...")
-            try:
-                capif.wait(timeout=5)
-            except capif.TimeoutExpired:
-                print(f"{capif} didn’t terminate in time. Killing...")
-                capif.kill()
+        # try:
+        #     capif_process.terminate()
+        #     capif_process.wait(timeout=5)
+        # except capif_process.TimeoutExpired:
+        #     print(f"{capif_process} didn’t terminate in time. Killing...")
+        #     try:
+        #         capif_process.wait(timeout=5)
+        #     except capif_process.TimeoutExpired:
+        #         print(f"{capif_process} didn’t terminate in time. Killing...")
+        #         capif_process.kill()
 
         try:
             virtual_host_broker_process.terminate()
