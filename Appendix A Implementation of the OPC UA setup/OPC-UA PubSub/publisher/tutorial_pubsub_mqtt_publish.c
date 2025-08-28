@@ -44,7 +44,10 @@
 #include <open62541/server.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/pubsub_mqtt.h>
-#include <cjson/cJSON.h>
+//JSON
+#include "cJSON/cJSON.h"
+#include "cJSON/cJSON.c"
+#include <stdlib.h>
 //UNIX socket
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -60,7 +63,7 @@
 
 #define PUBLISHER_METADATAQUEUENAME  "MetaDataTopic"
 #define PUBLISHER_METADATAUPDATETIME 0
-#define BROKER_ADDRESS_URL           "opc.mqtt://127.0.0.1:1883"
+#define BROKER_ADDRESS_URL           "opc.mqtt://127.0.0.1:1882"
 #define PUBLISH_INTERVAL             600
 #define PUBLISH_INTERVAL2             500
 
@@ -103,7 +106,9 @@ static UA_Boolean useJson = false;
 
 static UA_NodeId connectionIdent;
 static UA_NodeId publishedDataSetIdent;
+static UA_NodeId publishedDataSetIdent2;
 static UA_NodeId writerGroupIdent;
+static UA_NodeId writerGroupIdent2;
 
 static void
 addPubSubConnection(UA_Server *server, char *addressUrl) {
@@ -167,6 +172,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
+
+
 /**
  * **PublishedDataSet handling**
  * The PublishedDataSet (PDS) and PubSubConnection are the toplevel entities and
@@ -175,15 +182,16 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
  * connection.
  */
 static void
-addPublishedDataSet(UA_Server *server) {
+addPublishedDataSet(UA_Server *server, UA_NodeId* publishedDataSetIdent, char* name) {
     /* The PublishedDataSetConfig contains all necessary public
     * information for the creation of a new PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
-    publishedDataSetConfig.name = UA_STRING("Demo PDS");
+    publishedDataSetConfig.name = UA_STRING(name);
+    //publishedDataSetConfig.name = UA_STRING("Demo PDS");
     /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
-    UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
+    UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, publishedDataSetIdent);
 }
 
 /**
@@ -191,18 +199,24 @@ addPublishedDataSet(UA_Server *server) {
  * The DataSetField (DSF) is part of the PDS and describes exactly one published field.
  */
 static void
-addDataSetField(UA_Server *server) {
+addDataSetField(UA_Server *server, UA_NodeId* publishedDataSetIdent, char* alias) {
     /* Add a field to the previous created PublishedDataSet */
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
 
-    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING(alias);
+    //dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, NULL);
+
+    /*Ensure type matches DateTime */
+    // dataSetFieldConfig.field.variable.fieldMetaData.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    // dataSetFieldConfig.field.variable.fieldMetaData.valueRank = -1;
+
+    UA_Server_addDataSetField(server, *publishedDataSetIdent, &dataSetFieldConfig, NULL);
 }
 
 /**
@@ -211,7 +225,7 @@ addDataSetField(UA_Server *server) {
  * parameters for the message creation.
  */
 static UA_StatusCode
-addWriterGroup(UA_Server *server, char *topic, int interval, UA_BrokerTransportQualityOfService QoS) {
+addWriterGroup(UA_Server *server, char *topic, int interval, UA_BrokerTransportQualityOfService QoS, UA_NodeId *writerGroupId, int id) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Now we create a new WriterGroupConfig and add the group to the existing PubSubConnection. */
     UA_WriterGroupConfig writerGroupConfig;
@@ -219,7 +233,8 @@ addWriterGroup(UA_Server *server, char *topic, int interval, UA_BrokerTransportQ
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = interval;
     writerGroupConfig.enabled = UA_FALSE;
-    writerGroupConfig.writerGroupId = 100; //original
+    writerGroupConfig.writerGroupId = id;
+    // writerGroupConfig.writerGroupId = 100; //original
     UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
     /* decide whether to use JSON or UADP encoding*/
@@ -300,10 +315,10 @@ static UA_StatusCode_ENCODING
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     writerGroupConfig.transportSettings = transportSettings;
-    retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, writerGroupId);
 
     if (retval == UA_STATUSCODE_GOOD)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        UA_Server_setWriterGroupOperational(server, *writerGroupId);
 
 #ifdef UA_ENABLE_JSON_ENCODING
     if (useJson) {
@@ -320,7 +335,7 @@ static UA_StatusCode_ENCODING
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
-    retval = UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
+    retval = UA_Server_setWriterGroupEncryptionKeys(server, *writerGroupId, 1, sk, ek, kn);
     if (retval!= UA_STATUSCODE_GOOD)
     {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"SV_PubSub.c : addWriterGroup : UA_Server_setWriterGroupEncryptionKeys : "
@@ -331,6 +346,127 @@ static UA_StatusCode_ENCODING
     return retval;
 }
 
+
+
+
+
+
+
+/* ** Change already created Writergourp config **
+* In this build only the interval changing is supported.
+* Rest is the same value as baked in the **addWriterGroup** function.
+* This function was self written and is not checked by open62541 developer team.
+*/
+static UA_StatusCode
+WriterGroup_updateConfig(UA_Server *server, UA_NodeId* writerGroupId, char *topic, int interval, UA_BrokerTransportQualityOfService QoS) {
+    
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_WriterGroupConfig WGconfig ;
+
+
+    memset(&WGconfig, 0, sizeof(UA_WriterGroupConfig));
+    WGconfig.name = UA_STRING("Demo WriterGroup");
+    WGconfig.publishingInterval = interval;
+    WGconfig.enabled = UA_FALSE;
+    WGconfig.writerGroupId = writerGroupId; //original value = 100
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage;
+
+    /* decide whether to use JSON or UADP encoding*/
+#ifdef UA_ENABLE_JSON
+static UA_StatusCode_ENCODING
+    UA_JsonWriterGroupMessageDataType *Json_writerGroupMessage;
+
+    if(useJson) {
+        WGconfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+        WGconfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+
+        WGconfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
+        /* The configuration flags for the messages are encapsulated inside the
+         * message- and transport settings extension objects. These extension
+         * objects are defined by the standard. e.g.
+         * UadpWriterGroupMessageDataType */
+        Json_writerGroupMessage = UA_JsonWriterGroupMessageDataType_new();
+        /* Change message settings of writerGroup to send PublisherId,
+         * DataSetMessageHeader, SingleDataSetMessage and DataSetClassId in PayloadHeader
+         * of NetworkMessage */
+        Json_writerGroupMessage->networkMessageContentMask =
+            (UA_JsonNetworkMessageContentMask)(UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_SINGLEDATASETMESSAGE |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID);
+        config.messageSettings.content.decoded.data = Json_writerGroupMessage;
+    }
+
+    else
+#endif
+    {
+        WGconfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        WGconfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+        WGconfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        /* The configuration flags for the messages are encapsulated inside the
+         * message- and transport settings extension objects. These extension
+         * objects are defined by the standard. e.g.
+         * UadpWriterGroupMessageDataType */
+        writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+        /* Change message settings of writerGroup to send PublisherId,
+         * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
+         * of NetworkMessage */
+        writerGroupMessage->networkMessageContentMask =
+            (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+        WGconfig.messageSettings.content.decoded.data = writerGroupMessage;
+    }
+
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+    /* Encryption settings */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    WGconfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    WGconfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+#endif
+
+    /* configure the mqtt publish topic */
+    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+    /* Assign the Topic at which MQTT publish should happen */
+    /*ToDo: Pass the topic as argument from the writer group */
+    brokerTransportSettings.queueName = UA_STRING(topic);
+    brokerTransportSettings.resourceUri = UA_STRING_NULL;
+    brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
+
+    /* Choose the QOS Level for MQTT */
+    //brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+    brokerTransportSettings.requestedDeliveryGuarantee = QoS;
+    
+    
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
+
+    WGconfig.transportSettings = transportSettings;
+
+
+    retval |= UA_Server_updateWriterGroupConfig(server, *writerGroupId, &WGconfig);
+
+
+    return retval;
+}
+
+
+
+
+
+
+
+
+
+
+
 /**
  * **DataSetWriter handling**
  * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
@@ -338,7 +474,7 @@ static UA_StatusCode_ENCODING
  * message generation.
  */
 static void
-addDataSetWriter(UA_Server *server, char *topic, UA_BrokerTransportQualityOfService QoS) {
+addDataSetWriter(UA_Server *server, char *topic, UA_BrokerTransportQualityOfService QoS, UA_NodeId* writerGroupId) {
     /* We need now a DataSetWriter within the WriterGroup. This means we must
      * create a new DataSetWriterConfig and add call the addWriterGroup function. */
     UA_NodeId dataSetWriterIdent;
@@ -393,7 +529,7 @@ addDataSetWriter(UA_Server *server, char *topic, UA_BrokerTransportQualityOfServ
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     dataSetWriterConfig.transportSettings = transportSettings;
-    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
+    UA_Server_addDataSetWriter(server, *writerGroupId, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
 
@@ -415,49 +551,18 @@ addDataSetWriter(UA_Server *server, char *topic, UA_BrokerTransportQualityOfServ
 
 static void usage(void) {
     printf("Usage: tutorial_pubsub_mqtt_publish [--url <opc.mqtt://hostname:port>] "
-           "[--topic <mqttTopic>] "
-           "[--freq <frequency in ms> "
+           "[--topic <1 or 2 mqttTopics, with space in between>] "
+           "[--freq <1 or 2 frequencies in ms, with space in between>]"
            "[--json]\n"
            "  Defaults are:\n"
            "  - Url: opc.mqtt://127.0.0.1:1883\n"
-           "  - Topic: topic1\n"
-           "  - Frequency: 600\n"
-           "  - JSON: Off\n");
-}
-
-static void usage2(void) {
-    printf("Usage: tutorial_pubsub_mqtt_publish [--url <opc.mqtt://hostname:port>] "
-           "[--topic <mqttTopic>] "
-           "[--freq <frequency in ms> "
-           "[--json]\n"
-           "  Defaults are:\n"
-           "  - Url: opc.mqtt://127.0.0.1:1883\n"
-           "  - Topic: topic2\n"
-           "  - Frequency: 500\n"
+           "  - Topic: topic1 topic2\n"
+           "  - Frequency: 600 500\n"
            "  - JSON: Off\n");
 }
 
 
 
-
-/*static UA_StatusCode publish_interval(char* link, cJSON* apiname, cJSON* aefprofiles, cJSON* description, cJSON* supported_features, cJSON* shareable_info, cJSON* serviceAPIcategory, cJSON* api_supp_feats, cJSON* pub_api_path, cJSON* ccfid, cJSON* ipv4, int port){
-    
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    char *string = NULL;
-    
-    
-    
-    string = "string";
-    
-    //retval = UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
-    if (retval!= UA_STATUSCODE_GOOD)
-    {
-    //TODO change it
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"SV_PubSub.c : addWriterGroup : UA_Server_setWriterGroupEncryptionKeys : "
-                                                            "failure %s", UA_StatusCode_name(retval));
-    }
-  return retval;
-}*/
 
 
 // Signal handler to handle Ctrl+C and clean up resources
@@ -492,6 +597,9 @@ int main(int argc, char **argv) {
     struct sockaddr_un server_addr;
 
     /* Parse arguments */
+    // for (int argpos = 1; argpos < argc; argpos++) {
+    //     printf("%s\n",argv[argpos]);
+    // }
     for(int argpos = 1; argpos < argc; argpos++) {
         if(strcmp(argv[argpos], "--help") == 0) {
             usage();
@@ -520,8 +628,18 @@ int main(int argc, char **argv) {
             }
             argpos++;
             topic = argv[argpos];
+            //printf("%s\n", topic);
+
+            if (strstr(argv[argpos + 1], "--") == NULL){
+                if(argpos + 1 < argc) {
+                    argpos++;
+                    topic2 = argv[argpos];
+                    //printf("%s\n",topic2);
+                }
+            } 
             continue;
         }
+
         if(strcmp(argv[argpos], "--freq") == 0) {
             if(argpos + 1 == argc) {
                 usage();
@@ -537,58 +655,21 @@ int main(int argc, char **argv) {
                                "Publication interval too small");
                 return -1;
             }
-            continue;
-        }
-
-        usage();
-        return -1;
-    }
-    /* Parse 2nd arguments */
-    for(int argpos = 1; argpos < argc; argpos++) {
-        if(strcmp(argv[argpos], "--help") == 0) {
-            usage2();
-            return 0;
-        }
-
-        if(strcmp(argv[argpos], "--json") == 0) {
-            useJson = true;
-            continue;
-        }
-
-        if(strcmp(argv[argpos], "--url") == 0) {
-            if(argpos + 1 == argc) {
-                usage2();
-                return -1;
-            }
-            argpos++;
-            addressUrl = argv[argpos];
-            continue;
-        }
-
-        if(strcmp(argv[argpos], "--topic") == 0) {
-            if(argpos + 1 == argc) {
-                usage2();
-                return -1;
-            }
-            argpos++;
-            topic2 = argv[argpos];
-            continue;
-        }
-        if(strcmp(argv[argpos], "--freq") == 0) {
-            if(argpos + 1 == argc) {
-                usage2();
-                return -1;
-            }
-            argpos++;
-            if(sscanf(argv[argpos], "%d", &interval2) != 1) {
-                usage2();
-                return -1;
-            }
-            if(interval2 <= 10) {
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                               "Publication interval too small");
-                return -1;
-            }
+            
+            if (strstr(argv[argpos + 1], "--") == NULL){
+                if(argpos + 1 < argc) {
+                    argpos++;
+                    if(sscanf(argv[argpos], "%d", &interval2) != 1) {
+                        usage();
+                        return -1;
+                    }
+                    if(interval2 <= 10) {
+                        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                    "Publication interval too small");
+                        return -1;
+                    }    
+                }
+            } 
             continue;
         }
 
@@ -615,9 +696,9 @@ int main(int argc, char **argv) {
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     addPubSubConnection(server, addressUrl);
-    addPublishedDataSet(server);
-    addDataSetField(server);
-    retval = addWriterGroup(server, topic, interval, ATLEASTONCE);
+    addPublishedDataSet(server, &publishedDataSetIdent, "Server localtime");
+    addDataSetField(server, &publishedDataSetIdent, "DateTime");
+    retval = addWriterGroup(server, topic, interval, ATLEASTONCE, &writerGroupIdent, 100);
     
     
     if(UA_STATUSCODE_GOOD != retval) {
@@ -625,135 +706,22 @@ int main(int argc, char **argv) {
                      "Error Name = %s", UA_StatusCode_name(retval));
         return EXIT_FAILURE;
     }
-    addDataSetWriter(server, topic, ATLEASTONCE);
+    addDataSetWriter(server, topic, ATLEASTONCE, &writerGroupIdent);
     
 
     UA_StatusCode retval2 = UA_STATUSCODE_GOOD;    
-    //addPublishedDataSet(server);
-    //addDataSetField(server);
-    retval2 = addWriterGroup(server, topic2, interval2, BESTEFFORT);
+    addPublishedDataSet(server, &publishedDataSetIdent2, "Server localtime 2");
+    addDataSetField(server, &publishedDataSetIdent2, "DateTime");
+    retval2 = addWriterGroup(server, topic2, interval2, BESTEFFORT, &writerGroupIdent2, 200);
     if(UA_STATUSCODE_GOOD != retval2) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Error Name = %s", UA_StatusCode_name(retval2));
         return EXIT_FAILURE;
     }
-    addDataSetWriter(server, topic2, BESTEFFORT);
+    addDataSetWriter(server, topic2, BESTEFFORT, &writerGroupIdent2);
 
-    
-    // ////// UNIX socket
-    // Connect to the Unix socket server
-    server_addr.sun_family = AF_UNIX;
-    strcpy(server_addr.sun_path, unix_path);
-
-    client_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (client_socket == -1) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
-    
-    connection_result = connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    if (connection_result == -1) {
-        perror("Socket connect failed");
-        close(client_socket);
-        exit(EXIT_FAILURE);
-    }
-    
-    
-    /////
-    int i = 1;
-    char* msg_exp_inv = "CAPIF provider";
-                printf(msg_exp_inv);
-                ssize_t bytes_written = write(client_socket,msg_exp_inv,strlen(msg_exp_inv));
-                if (bytes_written < 0){
-                    printf("Unsuccessful message sending.");
-                    printf(msg_exp_inv);
-                }
-    UA_Server_run_startup(server);
-    
-    // Main loop to read data from Unix server, publish to MQTT, and send to Unix socket
-    while (i) {
-        // Serve OPC UA requests 
-        UA_Server_run_iterate(server,true);
-        
-        // Read data from server
-        char buffer[1024];
-        memset(buffer, 0, sizeof(buffer));
-
-        ssize_t bytes_received = read(client_socket, buffer, strlen(buffer));
-        if (bytes_received >= 0) {
-            // Process received data from server
-            char* c_pub_interval = "change_publishing_interval";
-            char* msg ;//= "{\n\t\'publishing_interval\' : \""+itoa(interval_help)+"\"\n}";
-
-
-            if (strstr(buffer,"CAPIF") != NULL) {
-                printf(buffer);
-                char* msg_exp_inv = "CAPIF provider";
-                printf(msg_exp_inv);
-                ssize_t bytes_written = write(client_socket,msg_exp_inv,strlen(msg_exp_inv));
-                if (bytes_written < 0){
-                    printf("Unsuccessful message sending.");
-                    printf(msg_exp_inv);
-                }
-            }
-            else if (strstr(buffer,c_pub_interval)!= NULL ) {
-                printf(buffer);
-                    //cJSON* message;
-                    //int interval_help = cJSON_GetObjectItemCaseSensitive(cJSON_Parse(buffer),"change_publishing_interval")->valueint;
-                    int interval_help = 500;
-                        
-                    if (interval_help == interval) {
-                        snprintf(msg,"{\n\t\"origin\": \"OPCUA\",\n\t\"publishing_interval\": %d,\n\t\"success\": %d,\n\t\"reason\": \"SAME INTERVAL AS SET LAST\"\n}",interval_help, true);
-                        printf(msg);
-                        write(client_socket,msg,strlen(msg));
-                    }                        
-
-                    if(interval_help > 50 && interval_help < 60000){
-                        //ToDO: Change publishing interval for QoS 1 topic
-                        interval = interval_help;
-                        snprintf(msg,"{\n\t\"origin\": \"OPCUA\",\n\t\"publishing_interval\": %d,\n\t\"success\": %d\n}",interval_help, true);
-                        printf(msg);
-                        write(client_socket,msg,strlen(msg));
-                        //cJSON_Delete(message);
-                    }
-                    else {
-                        interval_help = interval;
-                        snprintf(msg,"{\n\t\"origin\": \"OPCUA\",\n\t\"publishing_interval\": %d,\n\t\"success\": %d,\n\t\"reason\": \"Too small, or too big interval.\"\n}",interval_help, false);
-                        printf(msg);
-                        write(client_socket,msg,strlen(msg));
-                    }
-
-            }
-            else {
-                snprintf(msg,"{\n\t\"origin\": \"OPCUA\",\n\t\"success\": %d,\n\t\"reason\": \"Missing argument publishing_interval.\"}", false);
-                printf(msg);
-                write(client_socket,msg,strlen(msg));
-            }
-            
-        }
-        if (i == 500){
-            char buffersend[1024];
-            snprintf(buffersend, sizeof(buffersend), "{\n\t\"publishing_interval\": %d\n}", interval);
-            // Send data to server
-            ssize_t bytes_sent = write(client_socket, buffersend, strlen(buffersend));
-            if (bytes_sent <= 0) {
-                // Handle disconnect or error
-                printf("Error writing to Unix socket\n");
-                //break;
-            }       
-            i=1;
-        }
-        else{
-            i++;
-        }
-        // Sleep for a while (simulating periodic updates)
-        sleep(0.1);
-    }
-
-    UA_Server_run_shutdown(server);
-    //UA_Server_runUntilInterrupt(server);
+    //UA_Server_run_startup(server);
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    close(client_socket);
-    unlink(unix_path);
     return 0;
 }
