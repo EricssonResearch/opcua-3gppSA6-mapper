@@ -410,7 +410,7 @@ def main():
     net['connexion'].cmdPrint("sudo cat /proc/net/tcp")
     
   #Start CAPIF Core Services for sharing 
-    info("\nStarting CAPIF Core Services:  '%s'\n"%capif_docker_cmd)
+    #info("\nStarting CAPIF Core Services:  '%s'\n"%capif_docker_cmd)
     #capif = net['capif'].popen(run_in_terminal(net['capif'].pid, capif_docker_cmd), shell=True, stderr=open('/tmp/capif_stderr.log', 'w'))
     #time.sleep(20)
     #capif_process = net['capif'].popen(run_in_terminal(net['capif'].pid, capif_docker_cmd), shell=True,stderr=open('/tmp/capif_stderr.log', 'w'))

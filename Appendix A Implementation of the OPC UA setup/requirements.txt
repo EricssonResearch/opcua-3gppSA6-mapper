@@ -1,0 +1,15 @@
+install build-essential
+install software-properties-common
+gcc-12 
+g++-12 
+gcc-13 
+g++-13
+libxml2-dev
+pkg-config
+sphinx 
+texlive 
+check
+make 
+cmake 
+cmake-curses-gui
+

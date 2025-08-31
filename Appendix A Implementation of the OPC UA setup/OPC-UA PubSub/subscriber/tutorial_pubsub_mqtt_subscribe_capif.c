@@ -6,31 +6,32 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
+#include <stdlib.h>
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/pubsub_mqtt.h>
+#endif
+
 //UNIX socket
 #include <sys/socket.h>
 #include <sys/un.h>
 //JSON
 #include "cJSON/cJSON.h"
 #include "cJSON/cJSON.c"
-#include <stdlib.h>
-//#include <sys/time.h>
+
+#include <stdio.h>
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
-#define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
-#define MQTT_CLIENT_ID                "OPC_UA_Subscriber"
+#define TRANSPORT_PROFILE_URI_UADP    "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"
+#define TRANSPORT_PROFILE_URI_JSON    "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"
+#define MQTT_CLIENT_ID                "TESTCLIENTPUBSUBMQTTSUBSCRIBE"
 #define CONNECTIONOPTION_NAME         "mqttClientId"
-
 #define SUBSCRIBER_TOPIC              "topic1"
 #define SUBSCRIBER_TOPIC2              "topic2"
-
 #define SUBSCRIBER_METADATAQUEUENAME  "MetaDataTopic"
+#define SUBSCRIBER_METADATAQUEUENAME2  "MetaDataTopic2"
 #define SUBSCRIBER_METADATAUPDATETIME 0
-//#define BROKER_ADDRESS_URL            "opc.mqtt://10.1.2.2:8883"
-#define BROKER_ADDRESS_URL            "opc.mqtt://127.0.0.1:8883"
-#define SUBSCRIBE_INTERVAL            600
-#define SUBSCRIBE_INTERVAL2            500
+#define BROKER_ADDRESS_URL            "opc.mqtt://10.1.2.2:8883"
 
 // Uncomment the following line to enable MQTT login for the example
 // #define EXAMPLE_USE_MQTT_LOGIN
@@ -63,33 +64,37 @@ UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 #endif
 
-#ifdef UA_ENABLE_JSON_ENCODING
-static UA_Boolean useJson = true;
-#else
+// #ifdef UA_ENABLE_JSON_ENCODING
+// static UA_Boolean useJson = true;
+// #else
 static UA_Boolean useJson = false;
-#endif
+// #endif
 
 UA_NodeId connectionIdent;
+UA_NodeId connectionIdent2;
 UA_NodeId subscribedDataSetIdent;
 UA_NodeId subscribedDataSetIdent2;
 UA_NodeId readerGroupIdent;
 UA_NodeId readerGroupIdent2;
 
-
-
 UA_DataSetReaderConfig readerConfig;
+UA_DataSetReaderConfig readerConfig2;
 
-static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData, char*);
+static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData, char* DataSetName);
 
 static UA_StatusCode
-addPubSubConnection(UA_Server *server, char *addressUrl) {
+addPubSubConnection(UA_Server *server, char *addressUrl, UA_NodeId* connectionId) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Details about the connection configuration and handling are located
      * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
+    if(useJson) {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_JSON);
+    } else {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
+    }
     connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
@@ -102,48 +107,43 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     connectionConfig.publisherId.uint16 = 2234;
 
     /* configure options, set mqtt client id */
-    const int connectionOptionsCount = 2
-#ifdef EXAMPLE_USE_MQTT_LOGIN
-    + LOGIN_OPTION_COUNT
-#endif
-#ifdef EXAMPLE_USE_MQTT_TLS
-    + TLS_OPTION_COUNT
-#endif
-    ;
+/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
+/*     + LOGIN_OPTION_COUNT */
+/* #endif */
+/* #ifdef EXAMPLE_USE_MQTT_TLS */
+/*     + TLS_OPTION_COUNT */
+/* #endif */
 
-    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+    UA_KeyValuePair connectionOptions[1];
 
-    size_t connectionOptionIndex = 0;
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
     UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
+    UA_Variant_setScalar(&connectionOptions[0].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
 
+/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME); */
+/*     UA_String mqttUsername = UA_STRING(MQTT_USERNAME); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]); */
 
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME); */
+/*     UA_String mqttPassword = UA_STRING(MQTT_PASSWORD); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]); */
+/* #endif */
 
-#ifdef EXAMPLE_USE_MQTT_LOGIN
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME);
-    UA_String mqttUsername = UA_STRING(MQTT_USERNAME);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]);
+/* #ifdef EXAMPLE_USE_MQTT_TLS */
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME); */
+/*     UA_Boolean mqttUseTLS = true; */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]); */
 
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME);
-    UA_String mqttPassword = UA_STRING(MQTT_PASSWORD);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]);
-#endif
-
-#ifdef EXAMPLE_USE_MQTT_TLS
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME);
-    UA_Boolean mqttUseTLS = true;
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]);
-
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME);
-    UA_String mqttCaFile = UA_STRING(CA_FILE_PATH);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]);
-#endif
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME); */
+/*     UA_String mqttCaFile = UA_STRING(CA_FILE_PATH); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]); */
+/* #endif */
 
     connectionConfig.connectionProperties.map = connectionOptions;
-    connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
+    connectionConfig.connectionProperties.mapSize = 1;
 
-    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, connectionId);
 
     return retval;
 }
@@ -156,33 +156,30 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
  * is removed. All network message related filters are only available in the DataSetReader. */
 /* Add ReaderGroup to the created connection */
 static UA_StatusCode
-addReaderGroup(UA_Server *server, char* readername, UA_NodeId *readerGroupIdent, char* topic,  int interval, UA_BrokerTransportQualityOfService QoS) {
+addReaderGroup(UA_Server *server, char* readername, UA_NodeId *readerGroupId, char* topic, /*int interval,*/ UA_BrokerTransportQualityOfService QoS, UA_NodeId connectionId) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    //printf("addReaderGroup begin: %d\n", readerGroupIdent->identifier);
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
-    readerGroupConfig.name = UA_STRING(readername);
-    readerGroupConfig.subscribingInterval = interval;
+    readerGroupConfig.name = UA_STRING(readername);     //readerGroupConfig.name = UA_STRING("ReaderGroup1");
     if(useJson)
         readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
 
     /* configure the mqtt publish topic */
-    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
-    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+    UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
     /* Assign the Topic at which MQTT publish should happen */
     /*ToDo: Pass the topic as argument from the reader group */
-    //brokerTransportSettings.queueName = UA_STRING(SUBSCRIBER_TOPIC);
-    brokerTransportSettings.queueName = UA_STRING(topic);
+    brokerTransportSettings.queueName = UA_STRING(topic); //SUBSCRIBER_TOPIC
     brokerTransportSettings.resourceUri = UA_STRING_NULL;
     brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
 
     /* Choose the QOS Level for MQTT */
-    //brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+    // brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
     brokerTransportSettings.requestedDeliveryGuarantee = QoS;
-    
 
     /* Encapsulate config in transportSettings */
     UA_ExtensionObject transportSettings;
@@ -199,12 +196,9 @@ addReaderGroup(UA_Server *server, char* readername, UA_NodeId *readerGroupIdent,
     readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 #endif
-#include <stdlib.h>#include <stdlib.h>
-    retval |= UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
-                                       readerGroupIdent);
-    if (retval != UA_STATUSCODE_GOOD)
-        printf("\n\n UA_Server_addReaderGroup: %d", retval);
-    
+
+    retval |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig,
+                                       readerGroupId);
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
@@ -212,34 +206,12 @@ addReaderGroup(UA_Server *server, char* readername, UA_NodeId *readerGroupIdent,
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
 
     // TODO security token not necessary for readergroup (extracted from security-header)
-    retval |= UA_Server_setReaderGroupEncryptionKeys(server, *readerGroupIdent, 1, sk, ek, kn);
+    retval |= UA_Server_setReaderGroupEncryptionKeys(server, readerGroupId, 1, sk, ek, kn);
 #endif
-    retval |= UA_Server_setReaderGroupOperational(server, *readerGroupIdent);
-    if (retval != UA_STATUSCODE_GOOD)
-        printf("\n\n UA_Server_setReaderGroupOperational: %d", retval);
-        
-    //printf("addReaderGroup end: %d\n", readerGroupIdent->identifier);
+    retval |= UA_Server_setReaderGroupOperational(server, *readerGroupId);
+
     return retval;
 }
-
-
-
-/**
- * **ReaderGroup** **updating function**
- *
- * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
- * created within a PubSubConnection and automatically deleted if the connection
- * is removed. All network message related filters are only available in the DataSetReader. 
- * It is only possible to update the publishing/reading interval*/
-// static UA_StatusCode
-// updateReaderGroup(UA_Server *server, char* readername, UA_NodeId *readerGroupIdent, char* topic,  int interval, UA_BrokerTransportQualityOfService QoS) {
-// UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
-// UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
-// }
-
-
-
-
 
 /**
  * **DataSetReader**
@@ -251,37 +223,33 @@ addReaderGroup(UA_Server *server, char* readername, UA_NodeId *readerGroupIdent,
  * SubscribedDataSet and be contained within a ReaderGroup. */
 /* Add DataSetReader to the ReaderGroup */
 static UA_StatusCode
-addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdent, char* DataSetReaderName, char* DataSetName, UA_NodeId *subscribedDataSetIdent) {
+addDataSetReader(UA_Server *server, UA_NodeId readerGroupId, char* DataSetReaderName, char* DataSetName, UA_NodeId *subscribedDataSetId, UA_DataSetReaderConfig* readerConfig, int writergroupid, int datasetWriterId, int publisherId) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
-    readerConfig.name = UA_STRING(DataSetReaderName);
+    memset (readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    readerConfig->name = UA_STRING(DataSetReaderName);      //readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
      * by the DataSetReader */
     /* The following parameters are used to show that the data published by
      * tutorial_pubsub_mqtt_publish.c is being subscribed and is being updated in
      * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
-    readerConfig.writerGroupId    = 100;
-    readerConfig.dataSetWriterId  = 62541;
+    UA_UInt16 publisherIdentifier = publisherId; //2234
+    readerConfig->publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig->publisherId.data = &publisherIdentifier;
+    readerConfig->writerGroupId    = writergroupid; //100
+    readerConfig->dataSetWriterId  = datasetWriterId; //62541
 #ifdef UA_ENABLE_PUBSUB_MONITORING
-    readerConfig.messageReceiveTimeout = 10;
+    readerConfig->messageReceiveTimeout = 10;
 #endif
 
     /* Setting up Meta data configuration in DataSetReader */
-    fillTestDataSetMetaData(&readerConfig.dataSetMetaData, DataSetName);
-    //printf("%s",readerConfig,"\n",DataSetName);
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
-                                         subscribedDataSetIdent);
-    
-    if (retval != UA_STATUSCODE_GOOD)
-        printf("\n\n UA_Server_addDataSetReader: %d", retval);
-    
+    fillTestDataSetMetaData(&readerConfig->dataSetMetaData, DataSetName);
+
+    retval |= UA_Server_addDataSetReader(server, readerGroupId, readerConfig,
+                                         subscribedDataSetId);
     return retval;
 }
 
@@ -291,13 +259,13 @@ addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdent, char* DataSetRea
  * Set SubscribedDataSet type to TargetVariables data type.
  * Add subscribedvariables to the DataSetReader */
 static UA_StatusCode
-addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId, int nsi) {
+addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId, int nsi, UA_DataSetReaderConfig* readerConfig) {
     if(server == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId folderId;
-    UA_String folderName = readerConfig.dataSetMetaData.name;
+    UA_String folderName = readerConfig->dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     UA_QualifiedName folderBrowseName;
     if(folderName.length > 0) {
@@ -315,9 +283,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId, int nsi) {
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
-                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-    if (retval != UA_STATUSCODE_GOOD)
-        printf("\n\n UA_Server_addObjectNode: %d", retval);
+                                                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
 /**
  * **TargetVariables**
@@ -327,46 +293,37 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId, int nsi) {
  * The values subscribed from the Publisher are updated in the value field of these variables */
     /* Create the TargetVariables with respect to DataSetMetaData fields */
     UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
+        UA_calloc(readerConfig->dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    for(size_t i = 0; i < readerConfig->dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-        UA_LocalizedText_copy(&readerConfig.dataSetMetaData.fields[i].description,
+        UA_LocalizedText_copy(&readerConfig->dataSetMetaData.fields[i].description,
                               &vAttr.description);
         vAttr.displayName.locale = UA_STRING("en-US");
-        vAttr.displayName.text = readerConfig.dataSetMetaData.fields[i].name;
-        vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
+        vAttr.displayName.text = readerConfig->dataSetMetaData.fields[i].name;
+        vAttr.dataType = readerConfig->dataSetMetaData.fields[i].dataType;
 
         UA_NodeId newNode;
-        retval |= UA_Server_addVariableNode(server, 
-        				    UA_NODEID_NUMERIC(1, (UA_UInt32)i + nsi),
+        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + nsi),
                                             folderId,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                            UA_QUALIFIEDNAME(1, (char*)readerConfig.dataSetMetaData.fields[i].name.data),
+                                            UA_QUALIFIEDNAME(1, (char *)readerConfig->dataSetMetaData.fields[i].name.data),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                             vAttr, NULL, &newNode);
-        if (retval != UA_STATUSCODE_GOOD){
-        	printf("\n\n UA_Server_addVariableNode: %d ", retval);
-        	//printf("newNode: %s ", newNode);
-}
-	//printf("newNode: %d ", newNode);
+
         /* For creating Targetvariables */
         UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
         targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
         targetVars[i].targetVariable.targetNodeId = newNode;
     }
 
-    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId, readerConfig.dataSetMetaData.fieldsSize, targetVars);
-    if (retval != UA_STATUSCODE_GOOD)
-    {
-        printf("\n\n UA_Server_DataSetReader_createTargetVariables: %d \n", retval);
-        //printf("dataSetReaderId: %s \n", dataSetReaderId);
-        }
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
+    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                           readerConfig->dataSetMetaData.fieldsSize, targetVars);
+    for(size_t i = 0; i < readerConfig->dataSetMetaData.fieldsSize; i++)
         UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
 
     UA_free(targetVars);
-    UA_free(readerConfig.dataSetMetaData.fields);
+    UA_free(readerConfig->dataSetMetaData.fields);
     return retval;
 }
 
@@ -384,12 +341,12 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData, char* Dat
     }
 
     UA_DataSetMetaDataType_init (pMetaData);
-    pMetaData->name = UA_STRING (DataSetName);
+    pMetaData->name = UA_STRING (DataSetName); ///pMetaData->name = UA_STRING ("DataSet 1");
 
     /* Static definition of number of fields size to 4 to create four different
      * targetVariables of distinct datatype
      * Currently the publisher sends only DateTime data type */
-    pMetaData->fieldsSize = 4;
+    pMetaData->fieldsSize = 1;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
@@ -401,54 +358,45 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData, char* Dat
     pMetaData->fields[0].name =  UA_STRING ("DateTime");
     pMetaData->fields[0].valueRank = -1; /* scalar */
 
-    /* Int32 DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[1]);
-    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId,
-                   &pMetaData->fields[1].dataType);
-    pMetaData->fields[1].builtInType = UA_NS0ID_INT32;
-    pMetaData->fields[1].name =  UA_STRING ("Int32");
-    pMetaData->fields[1].valueRank = -1; /* scalar */
+    // /* Int32 DataType */
+    // UA_FieldMetaData_init (&pMetaData->fields[1]);
+    // UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId,
+    //                &pMetaData->fields[1].dataType);
+    // pMetaData->fields[1].builtInType = UA_NS0ID_INT32;
+    // pMetaData->fields[1].name =  UA_STRING ("Int32");
+    // pMetaData->fields[1].valueRank = -1; /* scalar */
 
-    /* Int64 DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[2]);
-    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT64].typeId,
-                   &pMetaData->fields[2].dataType);
-    pMetaData->fields[2].builtInType = UA_NS0ID_INT64;
-    pMetaData->fields[2].name =  UA_STRING ("Int64");
-    pMetaData->fields[2].valueRank = -1; /* scalar */
+    // /* Int64 DataType */
+    // UA_FieldMetaData_init (&pMetaData->fields[2]);
+    // UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT64].typeId,
+    //                &pMetaData->fields[2].dataType);
+    // pMetaData->fields[2].builtInType = UA_NS0ID_INT64;
+    // pMetaData->fields[2].name =  UA_STRING ("Int64");
+    // pMetaData->fields[2].valueRank = -1; /* scalar */
 
-    /* Boolean DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[3]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_BOOLEAN].typeId,
-                    &pMetaData->fields[3].dataType);
-    pMetaData->fields[3].builtInType = UA_NS0ID_BOOLEAN;
-    pMetaData->fields[3].name =  UA_STRING ("BoolToggle");
-    pMetaData->fields[3].valueRank = -1; /* scalar */
+    // /* Boolean DataType */
+    // UA_FieldMetaData_init (&pMetaData->fields[3]);
+    // UA_NodeId_copy (&UA_TYPES[UA_TYPES_BOOLEAN].typeId,
+    //                 &pMetaData->fields[3].dataType);
+    // pMetaData->fields[3].builtInType = UA_NS0ID_BOOLEAN;
+    // pMetaData->fields[3].name =  UA_STRING ("BoolToggle");
+    // pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
-
-
-// Signal handler to handle Ctrl+C and clean up resources
-void handle_signal(int signo) {
-    printf("Received signal %d. Cleaning up...\n", signo);
-    // Cleanup code here
-    exit(0);
-}
-
-
+// // Signal handler to handle Ctrl+C and clean up resources
+// void handle_signal(int signo) {
+//     printf("Received signal %d. Cleaning up...\n", signo);
+//     // Cleanup code here
+//     exit(0);
+// }
 
 static void usage(void) {
     printf("Usage: tutorial_pubsub_mqtt_subscribe [--url <opc.mqtt://hostname:port>] "
-           "[--topic <1 or 2 mqttTopics, with space in between>] "
-           "[--freq <1 or 2 frequencies in ms, with space in between>]"
            "[--json]\n"
            "  Defaults are:\n"
            "  - Url: opc.mqtt://127.0.0.1:1883\n"
-           "  - Topic: topic1 topic2\n"
-           "  - Frequency: 600 500\n"
            "  - JSON: Off\n");
 }
-
 
 /**
  * Followed by the main server code, making use of the above definitions */
@@ -457,8 +405,9 @@ int main(int argc, char **argv) {
     char *addressUrl = BROKER_ADDRESS_URL;
     char *topic = SUBSCRIBER_TOPIC;
     char *topic2 = SUBSCRIBER_TOPIC2;
-    int interval = SUBSCRIBE_INTERVAL;
-    int interval2 = SUBSCRIBE_INTERVAL2;
+    int publisherid = 2234;
+    int interval = 600;
+    int interval2 = 500;
     char *unix_path = "/tmp/capif_pubsub_interval_inv";
     //struct timespec start;
     
@@ -466,17 +415,13 @@ int main(int argc, char **argv) {
     UA_BrokerTransportQualityOfService BESTEFFORT = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
 
     //Handle Interrupt and socket data set up
-    signal(SIGINT, handle_signal);
+    // signal(SIGINT, handle_signal);
     int server_socket;
     int client_socket;
     int connection_result;
     struct sockaddr_un server_addr;
 
-
     /* Parse arguments */
-    // for (int argpos = 1; argpos < argc; argpos++) {
-    //     printf("%s\n",argv[argpos]);
-    // }
     for(int argpos = 1; argpos < argc; argpos++) {
         if(strcmp(argv[argpos], "--help") == 0) {
             usage();
@@ -484,7 +429,12 @@ int main(int argc, char **argv) {
         }
 
         if(strcmp(argv[argpos], "--json") == 0) {
+#ifdef UA_ENABLE_JSON_ENCODING
             useJson = true;
+#else 
+            printf("Json encoding not enabled (UA_ENABLE_JSON_ENCODING)\n");
+            useJson = false;
+#endif
             continue;
         }
 
@@ -516,124 +466,79 @@ int main(int argc, char **argv) {
             } 
             continue;
         }
-
-        if(strcmp(argv[argpos], "--freq") == 0) {
-            if(argpos + 1 == argc) {
-                usage();
-                return -1;
-            }
-            argpos++;
-            if(sscanf(argv[argpos], "%d", &interval) != 1) {
-                usage();
-                return -1;
-            }
-            if(interval <= 10) {
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                               "Publication interval too small");
-                return -1;
-            }
-            
-            if (strstr(argv[argpos + 1], "--") == NULL){
-                if(argpos + 1 < argc) {
-                    argpos++;
-                    if(sscanf(argv[argpos], "%d", &interval2) != 1) {
-                        usage();
-                        return -1;
-                    }
-                    if(interval2 <= 10) {
-                        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                    "Publication interval too small");
-                        return -1;
-                    }    
-                }
-            } 
-            continue;
-        }
-
-        usage();
-        return -1;
     }
 
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_StatusCode retval2 = UA_STATUSCODE_GOOD;
-    //A_StatusCode retval2 = UA_STATUSCODE_GOOD;
+    /* Return value initialized to Status Good */
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
     /* Instantiate the PubSub SecurityPolicy */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 #endif
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     /* API calls */
     /* Add PubSubConnection */
-    retval |= addPubSubConnection(server, addressUrl);
+    retval |= addPubSubConnection(server, addressUrl, &connectionIdent);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
-        
-        
-    
-
+        goto cleanup;
 
     /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server, "ReaderGroup1", &readerGroupIdent, topic, interval, ATLEASTONCE);
+    retval |= addReaderGroup(server, "ReaderGroup1", &readerGroupIdent, topic, /*interval,*/ ATLEASTONCE, connectionIdent);
     if (retval != UA_STATUSCODE_GOOD){
         printf("Adding Reader Group failed.");
-        return EXIT_FAILURE;
+        goto cleanup;
     }
-    printf("readerGroupIdent: %d\n", readerGroupIdent.identifier);
     
     /* Add DataSetReader to the created ReaderGroup */
-    retval |= addDataSetReader(server, readerGroupIdent, "DataSet Reader 1", "DataSet1", &subscribedDataSetIdent);
+    retval |= addDataSetReader(server, readerGroupIdent, "DataSet Reader 1", "DataSet1", &subscribedDataSetIdent, &readerConfig, 100, 62541, 2234);
     if (retval != UA_STATUSCODE_GOOD){
         printf("Adding DataSet Reader failed.");
-        return EXIT_FAILURE;
+        goto cleanup;
     }
-    printf("subscribedDataSetIdent: %d\n", subscribedDataSetIdent.identifier);
     
     /* Add SubscribedVariables to the created DataSetReader */
-    retval |= addSubscribedVariables(server, subscribedDataSetIdent, 40000);
+    retval |= addSubscribedVariables(server, subscribedDataSetIdent, 50000, &readerConfig);
     if (retval != UA_STATUSCODE_GOOD){
         printf("Adding Subscribed Variables failed.");
-        return EXIT_FAILURE;
+        goto cleanup;
     }
-    printf("subscribedDataSetIdent: %d\n", subscribedDataSetIdent.identifier);
 
 
-
+    retval |= addPubSubConnection(server, addressUrl, &connectionIdent2);
+    if (retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
     /* Add ReaderGroup to the created PubSubConnection */
-    retval2 |= addReaderGroup(server, "ReaderGroup2", &readerGroupIdent2, topic2, interval2, BESTEFFORT);
+    retval2 |= addReaderGroup(server, "ReaderGroup2", &readerGroupIdent2, topic2, /*interval2,*/ BESTEFFORT, connectionIdent2);
     if (retval2 != UA_STATUSCODE_GOOD){
         printf("Adding Reader Group 2 failed.");
-        exit(EXIT_FAILURE);
+        goto cleanup;
     }
-    printf("readerGroupIdent2: %d\n", readerGroupIdent2.identifier);
         
     /* Add DataSetReader to the created ReaderGroup */
-    retval2 |= addDataSetReader(server, readerGroupIdent2, "DataSet Reader 2", "DataSet2", &subscribedDataSetIdent2);
+    retval2 |= addDataSetReader(server, readerGroupIdent2, "DataSet Reader 2", "DataSet2", &subscribedDataSetIdent2, &readerConfig2, 200, 62542, publisherid);
     if (retval2 != UA_STATUSCODE_GOOD){
         printf("Adding DataSet Reader 2 failed.");
-        exit(EXIT_FAILURE);
+        goto cleanup;
     }
-    printf("subscribedDataSetIdent2: %d\n", subscribedDataSetIdent2.identifier);
 
     /* Add SubscribedVariables to the created DataSetReader */
-    retval2 |= addSubscribedVariables(server, subscribedDataSetIdent2,50000);
+    retval2 |= addSubscribedVariables(server, subscribedDataSetIdent2, 50050, &readerConfig2);
     if (retval2 != UA_STATUSCODE_GOOD){
         printf("Adding Subscribed Variables 2 failed.");
-        exit(EXIT_FAILURE);
+        goto cleanup;
     }
-    printf("subscribedDataSetIdent2: %d\n", subscribedDataSetIdent2.identifier);
 
-    //retval2 = UA_Server_runUntilInterrupt(server);
-    
+
+
     // ////// UNIX socket
     // Connect to the Unix socket server
     server_addr.sun_family = AF_UNIX;
@@ -769,10 +674,9 @@ int main(int argc, char **argv) {
 
     UA_Server_run_shutdown(server);
     //UA_Server_runUntilInterrupt(server);
+cleanup:
     UA_Server_delete(server);
     close(client_socket);
     unlink(unix_path);
-
-    // UA_Server_delete(server);
-    // return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }
